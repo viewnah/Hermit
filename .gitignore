@@ -1,0 +1,31 @@
+# ---- Node / Vite ----
+node_modules/
+dist/
+*.local
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---- Rust / Tauri ----
+src-tauri/target/
+# Tauri 生成的 Android 工程与 schema（可随时重新生成）
+src-tauri/gen/android/
+src-tauri/gen/schemas/
+
+# ---- macOS ----
+.DS_Store
+
+# ---- IDE ----
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# ---- 日志 ----
+*.log
+
+# ---- 本地测试资源 ----
+# 根目录导入的测试书籍（体积大、可重新导入）
+/*.epub
+# 演示截图
+demo-shots/
