@@ -373,8 +373,20 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   }
 
   // ---- navigation ----
-  const goNext = useCallback(() => { void view?.next() }, [view])
-  const goPrev = useCallback(() => { void view?.prev() }, [view])
+  // 点击翻页：tapAnimated=false 时临时移除 renderer 的 animated 属性（点击立即切换，
+  // 无 300ms 过渡），翻页完成后恢复（若全局 animated 开启）
+  const turnPage = useCallback((dir: 1 | -1) => {
+    const v = viewRef.current
+    const r = v?.renderer
+    if (!v) return
+    const hadAnim = r?.hasAttribute('animated') ?? false
+    if (hadAnim && !settings.tapAnimated) r?.removeAttribute('animated')
+    void (dir === 1 ? v.next() : v.prev()).finally(() => {
+      if (hadAnim && !settings.tapAnimated) r?.setAttribute('animated', '')
+    })
+  }, [settings.tapAnimated])
+  const goNext = useCallback(() => turnPage(1), [turnPage])
+  const goPrev = useCallback(() => turnPage(-1), [turnPage])
   const toggleChrome = useCallback(() => {
     if (chromeVisibleRef.current) {
       setChromeVisible(false)
@@ -399,11 +411,17 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
     if (chromeVisibleRef.current) { setChromeVisible(false); return }
     if (!scrolled && settings.tapTurn) {
       const w = window.innerWidth
-      if (clientX < w * 0.3) { goPrev(); return }
-      if (clientX > w * 0.7) { goNext(); return }
+      // tapLeftNext（左手模式）：点击左侧翻下一页、右侧翻上一页
+      if (settings.tapLeftNext) {
+        if (clientX < w * 0.3) { goNext(); return }
+        if (clientX > w * 0.7) { goPrev(); return }
+      } else {
+        if (clientX < w * 0.3) { goPrev(); return }
+        if (clientX > w * 0.7) { goNext(); return }
+      }
     }
     toggleChrome()
-  }, [panel, searchOpen, scrolled, settings.tapTurn, goPrev, goNext, toggleChrome, closeSearch])
+  }, [panel, searchOpen, scrolled, settings.tapTurn, settings.tapLeftNext, goPrev, goNext, toggleChrome, closeSearch])
 
   tapHandlerRef.current = handleTap
 

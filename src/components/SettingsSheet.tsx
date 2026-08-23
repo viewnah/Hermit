@@ -231,6 +231,10 @@ export const SettingsSheet = ({
               on={settings.animated} onChange={v => update({ animated: v })} />
             <ToggleRow title="点击翻页" sub="点击屏幕左右两侧翻页，中间呼出菜单"
               on={settings.tapTurn} onChange={v => update({ tapTurn: v })} />
+            <ToggleRow title="点击翻页动画" sub="点击翻页时的过渡动画，关闭后点击立即切换"
+              on={settings.tapAnimated} onChange={v => update({ tapAnimated: v })} />
+            <ToggleRow title="左侧点击翻下一页" sub="左手持机模式：点击左侧翻下一页、右侧翻上一页"
+              on={settings.tapLeftNext} onChange={v => update({ tapLeftNext: v })} />
           </>
         )}
 

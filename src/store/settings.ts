@@ -43,6 +43,8 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   flow: 'paginated',
   animated: true,
   tapTurn: true,
+  tapAnimated: true,
+  tapLeftNext: false,
 }
 
 interface SettingsState {

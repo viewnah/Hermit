@@ -69,6 +69,10 @@ export interface ReaderSettings {
   flow: Flow
   animated: boolean
   tapTurn: boolean
+  /** 点击翻页时是否播放过渡动画（false = 点击立即切换） */
+  tapAnimated: boolean
+  /** 点击左侧翻到下一页（左手持机模式，反转左右点击区域） */
+  tapLeftNext: boolean
 }
 
 export interface ThemePreset {
