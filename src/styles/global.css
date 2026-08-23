@@ -784,47 +784,6 @@ input, select {
   flex: none;
   font-variant-numeric: tabular-nums;
 }
-/* 翻页时页眉/页脚随方向滑入，与正文翻页动画同步（向前翻 = 从右滑入，向后翻 = 从左滑入） */
-/* 跟手滑动时相邻页眉页脚 tile：默认藏在屏幕右/左缘外一屏，随正文同步滑入。
-   贴满全宽（左右各 22px 内间距）与正文页面无缝衔接。
-   默认 transform 必须在屏外：JS 清空 inline transform 时自动回到屏外，
-   避免静止/回弹时残留内容盖住主页眉页脚造成重叠 */
-.head-tile, .foot-tile {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(var(--safe-top) + 16px);
-  z-index: 6;
-  height: 20px;
-  padding: 0 22px;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  color: var(--ink-faint);
-  pointer-events: none;
-  will-change: transform;
-}
-.head-tile.next, .foot-tile.next { transform: translateX(100vw); }
-.head-tile.prev, .foot-tile.prev { transform: translateX(-100vw); }
-.foot-tile {
-  top: auto;
-  bottom: calc(var(--safe-bottom) + 16px);
-  justify-content: flex-end;
-}
-.foot-tile .reader-head-title, .head-tile .reader-head-title {
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.head-tile .reader-head-pages, .foot-tile .reader-foot-pages {
-  flex: none;
-  font-variant-numeric: tabular-nums;
-}
 .reader-root:not(.chrome-hidden) .reader-head,
 .reader-root:not(.chrome-hidden) .reader-foot { opacity: 0; }
 

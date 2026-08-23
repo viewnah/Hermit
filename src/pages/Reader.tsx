@@ -77,20 +77,6 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   // 菜单可见状态与打开时的页面位置：供 "点击退出菜单 / 翻页后自动退出" 判定
   const chromeVisibleRef = useRef(false)
   const chromeOpenCfi = useRef<string | null>(null)
-  // 页眉页脚跟随正文滑动：基准滚动位置 + 元素引用（relocate 闭包先于 JSX 渲染，改用 ref）
-  const chromeShiftBase = useRef<number | null>(null)
-  const headRef = useRef<HTMLDivElement>(null)
-  const footRef = useRef<HTMLDivElement>(null)
-  // 相邻页眉页脚 tile：跟手滑动时贴在屏幕右/左缘外，随正文同步滑入，
-  // 解决滑动中途"下一页眉页脚未渲染"的问题
-  const headNextRef = useRef<HTMLDivElement>(null)
-  const headPrevRef = useRef<HTMLDivElement>(null)
-  const footNextRef = useRef<HTMLDivElement>(null)
-  const footPrevRef = useRef<HTMLDivElement>(null)
-  const syncChromeShiftRef = useRef<() => void>(() => {})
-  const resetChromeShiftRef = useRef<() => void>(() => {})
-  const chapterRef = useRef('')
-  chapterRef.current = chapter
   panelRef.current = panel
   onBackRef.current = onBack
   chromeVisibleRef.current = chromeVisible
@@ -131,9 +117,6 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
         if (d.tocItem?.label) setChapter(d.tocItem.label)
         if (d.tocItem?.href) setActiveTocHref(d.tocItem.href)
         scheduleSave()
-        // 页面切换完成：页眉页脚复位并重建基准（tile 已随正文滑入新页页码，
-        // 主页眉无缝交接，不做滑入动画，消除翻页结束后的页码跳变）
-        resetChromeShiftRef.current()
         // 菜单打开时页面位置变化（滑动翻页/跳转）→ 自动退出菜单
         if (chromeVisibleRef.current && chromeOpenCfi.current != null
           && d.cfi && d.cfi !== chromeOpenCfi.current) {
@@ -144,9 +127,6 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
       try {
         await v.open(record.file)
         if (cancelled) return
-        // 页眉页脚与正文一体滑动：renderer 在容器滚动（跟手/动画）时派发 scroll。
-        // 必须在 open() 之后绑定（renderer 是 open 时创建的，此前为 undefined）
-        v.renderer?.addEventListener?.('scroll', () => syncChromeShiftRef.current())
         applyRendererSettings(v, settings, getLoadedFonts())
         attachPageInfo(v)
         v.addEventListener('load', ev => attachDocTapHandler(ev.detail.doc))
@@ -257,136 +237,6 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   }
 
   toggleBookmarkRef.current = () => { void toggleBookmark() }
-
-  // ---- 页眉页脚跟随正文滑动 ----
-  // foliate 翻页（跟手 scrollBy / 松手 snap 动画）持续改变 containerPosition，
-  // 并以 scroll 事件转发；页眉页脚按 delta 同步平移，即可与正文一体滑动。
-  // 同时把"相邻页"的眉页脚 tile 贴在屏幕右/左缘外一屏处，随正文同步滑入，
-  // 杜绝滑动中途下一页眉页脚空白的问题。
-  const setTile = (el: HTMLDivElement | null, title: string, p: number | null, total: number | null) => {
-    if (!el) return
-    const key = `${title}|${p ?? ''}|${total ?? ''}`
-    if (el.dataset.p !== key) {
-      el.dataset.p = key
-      el.innerHTML = el.classList.contains('foot-tile')
-        ? `<span class="reader-foot-pages">${p != null ? (total != null ? `${p}/${total}` : `${p}`) : ''}</span>`
-        : `<span class="reader-head-title">${title}</span><span class="reader-head-pages">${p != null ? (total != null ? `${p}/${total}` : `${p}`) : ''}</span>`
-    }
-  }
-  // 相邻章节标题：跨章滑动时 tile 需要下一章/上一章的标题（当前章标题会误导），
-  // 从 TOC 顺序（activeHref 的相邻项）查询；找不到则回退当前章标题
-  const adjacentTocLabel = useCallback((href: string | null, dir: 1 | -1) => {
-    const toc = (viewRef.current?.book?.toc ?? []) as Array<{ label?: string; href?: string; subitems?: unknown[] }>
-    const flat: Array<{ label?: string; href?: string }> = []
-    const walk = (items: Array<{ label?: string; href?: string; subitems?: unknown[] }>) => {
-      for (const t of items) { flat.push(t); if (Array.isArray(t.subitems)) walk(t.subitems as never) }
-    }
-    walk(toc)
-    const idx = href ? flat.findIndex(t => t.href === href) : -1
-    const adj = idx >= 0 ? flat[idx + dir] : null
-    return adj?.label ?? chapterRef.current
-  }, [])
-  // 上一章 / 下一章标题镜像（供 scroll 回调同步读取）
-  const nextTitleRef = useRef('')
-  const prevTitleRef = useRef('')
-  nextTitleRef.current = adjacentTocLabel(activeTocHref, 1)
-  prevTitleRef.current = adjacentTocLabel(activeTocHref, -1)
-
-  const syncChromeShift = useCallback(() => {
-    const r = viewRef.current?.renderer
-    const h = headRef.current
-    const f = footRef.current
-    if (!r || (!h && !f)) return
-    // 滚动模式（flow=scrolled）容器的 scrollProp 是 scrollTop（纵向滚动），
-    // 不适合横向平移页眉页脚，跳过
-    if (r.getAttribute?.('flow') === 'scrolled') return
-    const pos = r.containerPosition
-    if (typeof pos !== 'number' || !Number.isFinite(pos)) return
-    if (chromeShiftBase.current == null) {
-      // 首次（当前页静止时）建立基准；跳过极小位移防止 jitter
-      chromeShiftBase.current = pos
-      return
-    }
-    const delta = pos - chromeShiftBase.current
-    const baseTf = Math.abs(delta) > 0.5 ? `translateX(${Math.round(-delta)}px)` : ''
-    if (h) h.style.transform = baseTf
-    if (f) f.style.transform = baseTf
-    // 跟手时主页眉页码实时变化（渲染器实测 page，天然无抖动）：
-    // 页面中心跨过半页即换页码，松手后 relocate 做最终校准
-    if (Math.abs(delta) > 4 && typeof r.page === 'number' && chromeSecPage.current) {
-      const sp = chromeSecPage.current
-      const cur = Math.min(Math.max(1, r.page + 1), sp.total)
-      setSecPage(prev => (prev && prev.cur !== cur ? { ...prev, cur } : prev))
-    }
-    // 相邻页眉页脚 tile：与正文相邻页同位（距当前页一屏），随 delta 一起滑动。
-    // delta > 0 = 翻下一页（内容左移），next tile 从右缘滑入：vw - delta；
-    // delta < 0 = 回上一页，prev tile 从左缘滑入：-vw - delta
-    // 跨章时 tile 显示相邻章标题（TOC 顺延）且页码从 1 开始，不再重复当前章信息
-    if (Math.abs(delta) > 4) {
-      const vw = window.innerWidth
-      const sp = chromeSecPage.current
-      const bp = chromeBookPage.current
-      const total = sp?.total ?? 0
-      const cur = sp?.cur ?? 0
-      // 章内相邻页：cur±1；章首/章尾跨章：相邻章第 1 页（下一章 total 未知）/上一章最后一页（由记忆的 prevSecTotal 提供）
-      const crossNext = cur >= total
-      const crossPrev = cur <= 1
-      const nx = crossNext ? 1 : Math.min(cur + 1, total)
-      const pv = crossPrev ? (prevSecTotalRef.current ?? 1) : Math.max(cur - 1, 1)
-      const nxTotal = crossNext ? null : total
-      const pvTotal = crossPrev ? prevSecTotalRef.current : total
-      const nextTitle = crossNext ? nextTitleRef.current : chapterRef.current
-      const prevTitle = crossPrev ? prevTitleRef.current : chapterRef.current
-      // foot tile 需显示全书页码（与主页脚格式一致）：翻一屏全书记录加一
-      const nxFoot = bp ? Math.min(bp.cur + 1, bp.total) : nx
-      const pvFoot = bp ? Math.max(bp.cur - 1, 1) : pv
-      const footTotal = bp?.total ?? null
-      if (headNextRef.current && footNextRef.current) {
-        headNextRef.current.style.transform = `translateX(${vw - delta}px)`
-        footNextRef.current.style.transform = `translateX(${vw - delta}px)`
-        setTile(headNextRef.current, nextTitle, nx, nxTotal)
-        setTile(footNextRef.current, '', nxFoot, footTotal)
-      }
-      if (headPrevRef.current && footPrevRef.current) {
-        headPrevRef.current.style.transform = `translateX(${-vw - delta}px)`
-        footPrevRef.current.style.transform = `translateX(${-vw - delta}px)`
-        setTile(headPrevRef.current, prevTitle, pv, pvTotal)
-        setTile(footPrevRef.current, '', pvFoot, footTotal)
-      }
-    } else {
-      // 静止：隐藏相邻 tile
-      for (const el of [headNextRef.current, headPrevRef.current, footNextRef.current, footPrevRef.current]) {
-        if (el) el.style.transform = ''
-      }
-    }
-  }, [])
-  // 页面切换完成（relocate）：清掉同步位移与相邻 tile，并立即用静止位置重建基准，
-  // 保证下次滑动第一帧就能算出完整 delta（而非等第一个 scroll 事件迟到建立）
-  const resetChromeShift = useCallback(() => {
-    if (headRef.current) headRef.current.style.transform = ''
-    if (footRef.current) footRef.current.style.transform = ''
-    for (const el of [headNextRef.current, headPrevRef.current, footNextRef.current, footPrevRef.current]) {
-      if (el) { el.style.transform = ''; el.dataset.p = '' }
-    }
-    const r = viewRef.current?.renderer
-    const pos = typeof r?.containerPosition === 'number' ? r.containerPosition : null
-    chromeShiftBase.current = Number.isFinite(pos) ? pos : null
-  }, [])
-  // 章节/全书页码的镜像 ref：tile 内容在 scroll 回调中读取，避免闭包旧值
-  const chromeSecPage = useRef<{ cur: number; total: number } | null>(null)
-  const chromeBookPage = useRef<{ cur: number; total: number } | null>(null)
-  chromeSecPage.current = secPage
-  chromeBookPage.current = bookPage
-  // 全书进度镜像（relocate 时更新）与全书 total 缓存：bookPage.cur = round(percent × total)，
-  // percent 单调平滑，彻底消除密度估算带来的 9→8→9 抖动
-  const percentRef = useRef(0)
-  const bookTotalRef = useRef<number | null>(null)
-  // 章节切换记忆：跨章滑动时 tile 需要"上一章最后一页 / 下一章第 1 页"
-  const lastIdxRef = useRef(-1)
-  const lastSecTotalRef = useRef<number | null>(null)
-  const prevSecTotalRef = useRef<number | null>(null)
-  syncChromeShiftRef.current = syncChromeShift
-  resetChromeShiftRef.current = resetChromeShift
 
   // ---- search ----
   // 基于 foliate 原生 search：遍历全书收集 { cfi, excerpt }，
@@ -557,6 +407,11 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
 
   tapHandlerRef.current = handleTap
 
+  // 全书进度镜像（view relocate 时更新）与全书 total 缓存：
+  // bookPage.cur = round(percent × total)，percent 单调平滑，避免页码抖动
+  const percentRef = useRef(0)
+  const bookTotalRef = useRef<number | null>(null)
+
   // foliate 渲染器级 relocate 携带当前章节内的页面比例（fraction/size），
   // 据此换算章节页码；全书页码按"当前章 loc 密度"估算 total，
   // cur 用平滑的 percent × total（percent 来自 view relocate，单调无抖动）
@@ -571,20 +426,16 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
         return
       }
       const total = Math.max(1, Math.round(1 / d.size))
-      // 与渲染器实测页码校验：detail 与容器状态偏差过大（跨章中间态）时以实测为准
-      const rp = typeof v.renderer?.page === 'number' ? v.renderer.page + 1 : null
+      // 与渲染器实测页码校验：detail 与容器状态偏差过大（跨章中间态）时以实测为准。
+      // 注意 foliate 的 page 因容器前后缓冲页偏移，第一页内容在视口时 page 已为 1
+      // （1 基显示值），直接使用，不可 +1
+      const rp = typeof v.renderer?.page === 'number' ? v.renderer.page : null
       const raw = Math.round(d.fraction / d.size) + 1
       const page = rp != null && Math.abs(rp - raw) <= 1 ? rp : Math.min(total, Math.max(1, raw))
       const cur = Math.min(total, Math.max(1, page))
       setSecPage({ cur, total })
       const idx = typeof d.index === 'number' ? d.index : -1
       setPageKey(`${idx}:${cur}`)
-      // 章节切换时记忆上一章页数（跨章回翻 tile 要用）
-      if (idx !== lastIdxRef.current) {
-        prevSecTotalRef.current = lastSecTotalRef.current
-        lastIdxRef.current = idx
-      }
-      lastSecTotalRef.current = total
 
       const secs = (v.book?.sections ?? []) as Array<{ size?: number }>
       const secSize = secs[idx]?.size ?? 0
@@ -879,7 +730,7 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
 
       {ready && book && (
         <>
-          <div className="reader-head" ref={headRef}>
+          <div className="reader-head">
             <span className="reader-head-title">{chapter || book.title}</span>
             {secPage && <span className="reader-head-pages">{secPage.cur}/{secPage.total}</span>}
             <div
@@ -887,16 +738,11 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
               style={{ height: pullDist > 0 ? Math.min(pullDist, 110) : hasMark ? 22 : 0 }}
             />
           </div>
-          <div className="reader-foot" ref={footRef}>
+          <div className="reader-foot">
             <span className="reader-foot-pages">
               {bookPage ? `${bookPage.cur}/${bookPage.total}` : `${Math.round(percent * 100)}%`}
             </span>
           </div>
-          {/* 跟手滑动时的相邻页眉页脚（位于屏幕右/左缘外一屏，随正文滑入） */}
-          <div className="head-tile next" ref={headNextRef} />
-          <div className="head-tile prev" ref={headPrevRef} />
-          <div className="foot-tile next" ref={footNextRef} />
-          <div className="foot-tile prev" ref={footPrevRef} />
 
           {!searchOpen && (
             <div className="reader-topbar">

@@ -30,9 +30,7 @@ declare module 'foliate-js/view.js' {
     next(distance?: number): Promise<void>
     prev(distance?: number): Promise<void>
     goTo(target: unknown): Promise<void>
-    /** 当前滚动位置（横向分页为 scrollLeft 语义），翻页动画期间持续变化 */
-    containerPosition: number
-    /** 当前页序号（0 基，按窗口中心判定），滑动跟手时持续变化 */
+    /** 当前页序号（0 基，按窗口中心判定） */
     page: number
   }
 
