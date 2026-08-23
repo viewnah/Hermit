@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSettings, THEMES, FONT_PRESETS, resolveTheme } from '../store/settings'
-import { Sheet, SheetTabs, SliderRow, Segmented, ToggleRow, toast, confirmDialog } from './ui'
+import { Sheet, SliderRow, Segmented, ToggleRow, toast, confirmDialog } from './ui'
 import {
   deleteFont, deleteWallpaper, getFontAssets, getWallpaperAssets,
   importFontFile, importWallpaperFile, loadAssets,
@@ -8,13 +8,12 @@ import {
 import { SyncPanel } from './SyncPanel'
 import type { Flow } from '../types'
 
-const TABS = [
-  { id: 'type', label: '排版' },
-  { id: 'theme', label: '主题' },
-  { id: 'page', label: '翻页' },
-  { id: 'font', label: '字体' },
-  { id: 'sync', label: '同步' },
-]
+const TAB_TITLES: Record<string, string> = {
+  type: '排版',
+  theme: '主题',
+  page: '设置',
+  sync: '同步',
+}
 
 export const SettingsSheet = ({
   open, onClose, onAssetsChanged, currentBookId, initialTab = 'type',
@@ -79,18 +78,64 @@ export const SettingsSheet = ({
   }
 
   return (
-    <Sheet open={open} onClose={onClose} title="设置">
-      <SheetTabs tabs={TABS} active={tab} onChange={setTab} />
+    <Sheet open={open} onClose={onClose} title={TAB_TITLES[tab] ?? '设置'}>
       <div className="sheet-body">
         {tab === 'type' && (
           <>
             <div className="setting-group">
               <div className="setting-label"><span>阅读字体</span></div>
-              <Segmented
-                options={FONT_PRESETS.slice(0, 3).map(p => ({ value: p.id, label: p.name }))}
-                value={settings.fontPreset.startsWith('custom:') ? '__custom' : settings.fontPreset}
-                onChange={v => { if (v !== '__custom') update({ fontPreset: v }) }}
-              />
+              {FONT_PRESETS.map(p => (
+                <button
+                  key={p.id}
+                  className="row-card"
+                  style={{
+                    width: '100%', textAlign: 'left',
+                    outline: settings.fontPreset === p.id ? '2px solid var(--accent)' : 'none',
+                  }}
+                  onClick={() => update({ fontPreset: p.id })}
+                >
+                  <div className="grow">
+                    <div className="title" style={{ fontFamily: p.stack }}>{p.name}</div>
+                    <div className="sub" style={{ fontFamily: p.stack }}>千山鸟飞绝，万径人踪灭</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className="setting-group">
+              <div className="setting-label">
+                <span>自定义字体</span>
+                <span className="value" style={{ fontSize: 12 }}>双击删除</span>
+              </div>
+              {fonts.map(f => (
+                <div
+                  key={f.id}
+                  className="row-card"
+                  style={{
+                    outline: settings.fontPreset === `custom:${f.family}` ? '2px solid var(--accent)' : 'none',
+                  }}
+                >
+                  <button className="grow" style={{ textAlign: 'left' }}
+                    onClick={() => update({ fontPreset: `custom:${f.family}` })}
+                    onDoubleClick={() => {
+                      void confirmDialog(`删除字体「${f.name}」？`, { confirmLabel: '删除' }).then(ok => {
+                        if (ok) {
+                          void deleteFont(f.id!).then(() => {
+                            if (settings.fontPreset === `custom:${f.family}`)
+                              update({ fontPreset: 'system-serif' })
+                            void refreshAssets()
+                          })
+                        }
+                      })
+                    }}>
+                    <div className="title">{f.name}</div>
+                    <div className="sub">{settings.fontPreset === `custom:${f.family}` ? '使用中' : '点击应用'}</div>
+                  </button>
+                </div>
+              ))}
+              <button className="btn" style={{ width: '100%' }}
+                onClick={() => fontInputRef.current?.click()}>
+                ＋ 导入字体（ttf / otf / woff2）
+              </button>
             </div>
             <SliderRow label="字号" value={settings.fontSize} min={12} max={32} step={1}
               onChange={v => update({ fontSize: v })} format={v => `${v} px`} />
@@ -231,66 +276,6 @@ export const SettingsSheet = ({
               on={settings.tapAnimated} onChange={v => update({ tapAnimated: v })} />
             <ToggleRow title="左侧点击翻下一页" sub="左手持机模式：点击左侧翻下一页、右侧翻上一页"
               on={settings.tapLeftNext} onChange={v => update({ tapLeftNext: v })} />
-          </>
-        )}
-
-        {tab === 'font' && (
-          <>
-            <div className="setting-group">
-              <div className="setting-label"><span>内置字体</span></div>
-              {FONT_PRESETS.map(p => (
-                <button
-                  key={p.id}
-                  className={`row-card ${settings.fontPreset === p.id ? '' : ''}`}
-                  style={{
-                    width: '100%', textAlign: 'left',
-                    outline: settings.fontPreset === p.id ? '2px solid var(--accent)' : 'none',
-                  }}
-                  onClick={() => update({ fontPreset: p.id })}
-                >
-                  <div className="grow">
-                    <div className="title" style={{ fontFamily: p.stack }}>{p.name}</div>
-                    <div className="sub" style={{ fontFamily: p.stack }}>千山鸟飞绝，万径人踪灭</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div className="setting-group">
-              <div className="setting-label">
-                <span>自定义字体</span>
-                <span className="value" style={{ fontSize: 12 }}>双击删除</span>
-              </div>
-              {fonts.map(f => (
-                <div
-                  key={f.id}
-                  className="row-card"
-                  style={{
-                    outline: settings.fontPreset === `custom:${f.family}` ? '2px solid var(--accent)' : 'none',
-                  }}
-                >
-                  <button className="grow" style={{ textAlign: 'left' }}
-                    onClick={() => update({ fontPreset: `custom:${f.family}` })}
-                    onDoubleClick={() => {
-                      void confirmDialog(`删除字体「${f.name}」？`, { confirmLabel: '删除' }).then(ok => {
-                        if (ok) {
-                          void deleteFont(f.id!).then(() => {
-                            if (settings.fontPreset === `custom:${f.family}`)
-                              update({ fontPreset: 'system-serif' })
-                            void refreshAssets()
-                          })
-                        }
-                      })
-                    }}>
-                    <div className="title">{f.name}</div>
-                    <div className="sub">{settings.fontPreset === `custom:${f.family}` ? '使用中' : '点击应用'}</div>
-                  </button>
-                </div>
-              ))}
-              <button className="btn" style={{ width: '100%' }}
-                onClick={() => fontInputRef.current?.click()}>
-                ＋ 导入字体（ttf / otf / woff2）
-              </button>
-            </div>
           </>
         )}
 
