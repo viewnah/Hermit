@@ -176,22 +176,18 @@ export const SettingsSheet = ({
             </div>
             <div className="setting-group">
               <div className="setting-label"><span>阅读字体</span></div>
-              {FONT_PRESETS.map(p => (
-                <button
-                  key={p.id}
-                  className="row-card"
-                  style={{
-                    width: '100%', textAlign: 'left',
-                    outline: settings.fontPreset === p.id ? '2px solid var(--accent)' : 'none',
-                  }}
-                  onClick={() => update({ fontPreset: p.id })}
-                >
-                  <div className="grow">
-                    <div className="title" style={{ fontFamily: p.stack }}>{p.name}</div>
-                    <div className="sub" style={{ fontFamily: p.stack }}>千山鸟飞绝，万径人踪灭</div>
-                  </div>
-                </button>
-              ))}
+              <div className="font-grid">
+                {FONT_PRESETS.map(p => (
+                  <button
+                    key={p.id}
+                    className={`font-card ${settings.fontPreset === p.id ? 'selected' : ''}`}
+                    onClick={() => update({ fontPreset: p.id })}
+                  >
+                    <span className="name" style={{ fontFamily: p.stack }}>{p.name}</span>
+                    <span className="sample" style={{ fontFamily: p.stack }}>千山鸟飞绝，万径人踪灭</span>
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="setting-group">
               <div className="setting-label">
@@ -213,7 +209,7 @@ export const SettingsSheet = ({
                         if (ok) {
                           void deleteFont(f.id!).then(() => {
                             if (settings.fontPreset === `custom:${f.family}`)
-                              update({ fontPreset: 'system-serif' })
+                              update({ fontPreset: 'default' })
                             void refreshAssets()
                           })
                         }

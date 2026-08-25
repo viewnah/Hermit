@@ -18,7 +18,10 @@ export interface FontPreset {
 }
 
 export const FONT_PRESETS: FontPreset[] = [
-  { id: 'system-serif', name: '默认衬线', stack: 'Georgia, "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", serif' },
+  // 默认字体：不覆盖 font-family，使用 EPUB 书籍自带字体
+  { id: 'default', name: '默认字体', stack: '' },
+  // 系统字体：使用当前平台系统默认字体（安卓 Roboto/思源黑体、iOS/macOS 苹方等）
+  { id: 'system', name: '系统字体', stack: 'system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif' },
   { id: 'song', name: '宋体', stack: '"Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", serif' },
   { id: 'hei', name: '黑体', stack: '"PingFang SC", "Heiti SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif' },
   { id: 'kai', name: '楷体', stack: '"Kaiti SC", "STKaiti", "KaiTi", "楷体", serif' },
@@ -35,7 +38,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   indent: true,
   justify: true,
   bold: false,
-  fontPreset: 'system-serif',
+  fontPreset: 'default',
   themeId: 'paper',
   customFg: '#332e26',
   customBg: '#f6f1e5',
@@ -67,6 +70,8 @@ export const useSettings = create<SettingsState>((set, get) => ({
       merged.marginH = saved.margin
       merged.marginV = saved.margin
     }
+    // 旧版本"默认衬线"更名为"默认字体"（使用 EPUB 自带字体）
+    if (merged.fontPreset === 'system-serif') merged.fontPreset = 'default'
     set({ settings: merged, loaded: true })
   },
   update(patch) {
