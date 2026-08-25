@@ -156,7 +156,7 @@ def build():
     <dc:title>三国演义·青梅煮酒</dc:title>
     <dc:creator id="author">罗贯中</dc:creator>
     <dc:language>zh-CN</dc:language>
-    <dc:publisher>夹页测试社</dc:publisher>
+    <dc:publisher>简阅测试社</dc:publisher>
     <meta property="dcterms:modified">2026-08-19T00:00:00Z</meta>
     <meta name="cover" content="cover-img"/>
   </metadata>

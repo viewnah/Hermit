@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "夹页",
+        "title": "简阅",
         "width": 800,
         "height": 600,
         "resizable": true,

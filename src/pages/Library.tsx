@@ -185,7 +185,7 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
     try {
       const res = await fetch('/demo/sample.epub')
       const blob = await res.blob()
-      const file = new File([blob], '幽冥仙途 - 减肥专家.epub', { type: 'application/epub+zip' })
+      const file = new File([blob], '西游记.epub', { type: 'application/epub+zip' })
       const result = await importBookFile(file)
       toast(result.duplicate ? '示例书籍已在书架' : '已载入示例书籍')
     } catch (e) {
@@ -356,7 +356,7 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
         {tab === 'mine' && (
           <div className="mine-page">
             <div className="mine-brand">
-              <div className="mine-logo">夹页<span className="seal" /></div>
+              <div className="mine-logo">简阅<span className="seal" /></div>
               <div className="mine-slogan">一页一世界</div>
               <div className="mine-version">v0.1.2</div>
             </div>
@@ -367,7 +367,7 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
             <div className="mine-section">
               <div className="mine-section-title">关于</div>
               <div className="mine-about">
-                夹页是一款本地优先的 EPUB 阅读器。书籍与阅读数据保存在设备本地，支持自定义排版、主题与字体，可通过 WebDAV 云备份，并与 KOReader 同步阅读进度。
+                简阅是一款本地优先的 EPUB 阅读器。书籍与阅读数据保存在设备本地，支持自定义排版、主题与字体，可通过 WebDAV 云备份，并与 KOReader 同步阅读进度。
               </div>
             </div>
           </div>
