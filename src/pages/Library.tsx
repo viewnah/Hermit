@@ -15,7 +15,7 @@ interface BookRow {
   addedAt: number
 }
 
-type Tab = 'shelf' | 'recent' | 'mine'
+type Tab = 'shelf' | 'mine'
 type SortMode = 'recent' | 'added' | 'title'
 type Menu = 'sort' | 'more' | null
 
@@ -25,7 +25,7 @@ const SORTS: { id: SortMode; label: string }[] = [
   { id: 'title', label: '书名' },
 ]
 
-const TAB_TITLES: Record<Tab, string> = { shelf: '全部书籍', recent: '最近', mine: '我的' }
+const TAB_TITLES: Record<Tab, string> = { shelf: '全部书籍', mine: '我的' }
 
 const SORT_KEY = 'clipreader.sort'
 const loadSort = (): SortMode => {
@@ -34,16 +34,6 @@ const loadSort = (): SortMode => {
 }
 
 const formatPct = (v: number) => `${Math.round(v * 100)}%`
-
-const formatReadTime = (t: number) => {
-  const d = new Date(t)
-  const now = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  if (d.toDateString() === now.toDateString()) return `今天 ${pad(d.getHours())}:${pad(d.getMinutes())}`
-  const yesterday = new Date(now.getTime() - 86400000)
-  if (d.toDateString() === yesterday.toDateString()) return '昨天'
-  return `${d.getMonth() + 1}月${d.getDate()}日`
-}
 
 const IconSearch = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -63,11 +53,6 @@ const IconChevron = () => (
 const IconPlus = () => (
   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
     <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-  </svg>
-)
-const IconClock = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15.5 14" />
   </svg>
 )
 const IconShelf = () => (
@@ -152,10 +137,6 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
       sorted.sort((a, b) => a.title.localeCompare(b.title, 'zh'))
     return sorted
   }, [rows, query, sort])
-
-  const recentRows = useMemo(
-    () => rows.filter(r => r.lastReadAt).sort((a, b) => b.lastReadAt! - a.lastReadAt!),
-    [rows])
 
   const handleFiles = async (files: FileList | null) => {
     if (!files?.length) return
@@ -315,44 +296,6 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
           </>
         ))}
 
-        {tab === 'recent' && (recentRows.length === 0 ? (
-          <div className="library-empty">
-            <div className="glyph">阅</div>
-            <h2>还没有阅读记录</h2>
-            <p>打开一本书<br />下次可以从这里继续</p>
-          </div>
-        ) : (
-          <div className="recent-list">
-            {recentRows.map((row, i) => (
-              <button
-                key={row.id}
-                className="recent-item"
-                style={{ animationDelay: `${Math.min(i * 50, 400)}ms` }}
-                onClick={() => onOpen(row.id)}
-                {...pressProps(row)}
-              >
-                <div className="recent-cover">
-                  {coverUrls.get(row.id) ? (
-                    <img src={coverUrls.get(row.id)} alt={row.title} />
-                  ) : (
-                    <div className="cover-fallback">{row.title}</div>
-                  )}
-                </div>
-                <div className="recent-info">
-                  <div className="recent-title">{row.title}</div>
-                  <div className="recent-meta">{row.author}</div>
-                  <div className="recent-bottom">
-                    <span className="recent-progress">
-                      {row.percentage > 0 ? `已读 ${formatPct(row.percentage)}` : '未开始'}
-                    </span>
-                    <span>{formatReadTime(row.lastReadAt!)}</span>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        ))}
-
         {tab === 'mine' && (
           <div className="mine-page">
             <div className="mine-brand">
@@ -386,9 +329,6 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
       )}
 
       <nav className="bottom-nav">
-        <button className={`nav-item ${tab === 'recent' ? 'active' : ''}`} onClick={() => setTab('recent')}>
-          <IconClock /><span>最近</span>
-        </button>
         <button className={`nav-item ${tab === 'shelf' ? 'active' : ''}`} onClick={() => setTab('shelf')}>
           <IconShelf /><span>书架</span>
         </button>
