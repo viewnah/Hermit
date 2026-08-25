@@ -185,7 +185,7 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
     try {
       const res = await fetch('/demo/sample.epub')
       const blob = await res.blob()
-      const file = new File([blob], '三国演义·青梅煮酒.epub', { type: 'application/epub+zip' })
+      const file = new File([blob], '幽冥仙途 - 减肥专家.epub', { type: 'application/epub+zip' })
       const result = await importBookFile(file)
       toast(result.duplicate ? '示例书籍已在书架' : '已载入示例书籍')
     } catch (e) {

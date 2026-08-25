@@ -15,6 +15,43 @@ const TAB_TITLES: Record<string, string> = {
   sync: '同步',
 }
 
+/* 排版图标（行间距 / 水平边距 / 垂直边距） */
+const IconLineSpacing = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2 4h20" />
+    <path d="M2 20h20" />
+    <path d="M12 6.5v11" />
+    <path d="m9.5 9 2.5-2.5L14.5 9" />
+    <path d="m9.5 15 2.5 2.5 2.5-2.5" />
+  </svg>
+)
+
+const IconMarginH = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round">
+    <path d="M3 5v14" />
+    <path d="M21 5v14" />
+    <path d="M7 12h10" />
+  </svg>
+)
+
+const IconMarginV = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round">
+    <path d="M5 3h14" />
+    <path d="M5 21h14" />
+    <path d="M12 7v10" />
+  </svg>
+)
+
+const ChevronRight = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m9 6 6 6-6 6" />
+  </svg>
+)
+
 export const SettingsSheet = ({
   open, onClose, onAssetsChanged, currentBookId, initialTab = 'type',
 }: {
@@ -26,6 +63,7 @@ export const SettingsSheet = ({
 }) => {
   const { settings, update } = useSettings()
   const [tab, setTab] = useState('type')
+  const [sub, setSub] = useState<'font' | 'more' | null>(null)
   const [fonts, setFonts] = useState(getFontAssets())
   const [wallpapers, setWallpapers] = useState(getWallpaperAssets())
   const [wallUrls, setWallUrls] = useState<Map<number, string>>(new Map())
@@ -37,6 +75,7 @@ export const SettingsSheet = ({
   useEffect(() => {
     if (!open) return
     setTab(initialTab)
+    setSub(null)
     void loadAssets().then(() => {
       setFonts(getFontAssets())
       setWallpapers(getWallpaperAssets())
@@ -77,11 +116,64 @@ export const SettingsSheet = ({
     toast(n ? `已导入 ${n} 张壁纸` : '导入失败')
   }
 
+  const currentFontName = (() => {
+    if (settings.fontPreset.startsWith('custom:')) {
+      const family = settings.fontPreset.slice('custom:'.length)
+      return fonts.find(f => f.family === family)?.name ?? '自定义字体'
+    }
+    return FONT_PRESETS.find(p => p.id === settings.fontPreset)?.name ?? '默认字体'
+  })()
+
   return (
     <Sheet open={open} onClose={onClose} title={TAB_TITLES[tab] ?? '设置'}>
       <div className="sheet-body">
-        {tab === 'type' && (
+        {tab === 'type' && sub === null && (
           <>
+            <SliderRow label="字号" value={settings.fontSize} min={12} max={32} step={1}
+              onChange={v => update({ fontSize: v })} format={v => `${v}`}
+              start="A" end={
+                <button
+                  className={`bold-toggle${settings.bold ? ' active' : ''}`}
+                  onClick={() => update({ bold: !settings.bold })}
+                  aria-label="加粗"
+                  aria-pressed={settings.bold}
+                >B</button>
+              } />
+            <SliderRow label="行间距" value={settings.lineHeight} min={1.2} max={2.6} step={0.05}
+              onChange={v => update({ lineHeight: v })} format={v => v.toFixed(1)}
+              start={<IconLineSpacing />} />
+            <div className="slider-grid">
+              <SliderRow compact label="水平页边距" value={settings.marginH} min={3} max={16} step={1}
+                onChange={v => update({ marginH: v })} format={v => `${v}`}
+                start={<IconMarginH />} />
+              <SliderRow compact label="垂直页边距" value={settings.marginV} min={3} max={16} step={1}
+                onChange={v => update({ marginV: v })} format={v => `${v}`}
+                start={<IconMarginV />} />
+            </div>
+            <div className="setting-nav-row">
+              <button className="setting-nav" onClick={() => setSub('font')}>
+                <span className="nav-value">{currentFontName}</span>
+                <ChevronRight />
+              </button>
+              <button className="setting-nav" onClick={() => setSub('more')}>
+                <span className="nav-value">更多设置</span>
+                <ChevronRight />
+              </button>
+            </div>
+          </>
+        )}
+
+        {tab === 'type' && sub === 'font' && (
+          <div className="sub-panel">
+            <div className="sub-header">
+              <button className="sub-back" onClick={() => setSub(null)} aria-label="返回">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </button>
+              <span className="sub-title">字体</span>
+            </div>
             <div className="setting-group">
               <div className="setting-label"><span>阅读字体</span></div>
               {FONT_PRESETS.map(p => (
@@ -137,21 +229,29 @@ export const SettingsSheet = ({
                 ＋ 导入字体（ttf / otf / woff2）
               </button>
             </div>
-            <SliderRow label="字号" value={settings.fontSize} min={12} max={32} step={1}
-              onChange={v => update({ fontSize: v })} format={v => `${v} px`} />
-            <SliderRow label="行距" value={settings.lineHeight} min={1.2} max={2.6} step={0.05}
-              onChange={v => update({ lineHeight: v })} format={v => v.toFixed(2)} />
+          </div>
+        )}
+
+        {tab === 'type' && sub === 'more' && (
+          <div className="sub-panel">
+            <div className="sub-header">
+              <button className="sub-back" onClick={() => setSub(null)} aria-label="返回">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </button>
+              <span className="sub-title">更多设置</span>
+            </div>
             <SliderRow label="段距" value={settings.paraSpacing} min={0} max={2} step={0.1}
               onChange={v => update({ paraSpacing: v })} format={v => `${v.toFixed(1)} em`} />
-            <SliderRow label="页边距" value={settings.margin} min={3} max={16} step={1}
-              onChange={v => update({ margin: v })} format={v => `${v} %`} />
             <SliderRow label="字距" value={settings.letterSpacing} min={-0.05} max={0.3} step={0.01}
               onChange={v => update({ letterSpacing: v })} format={v => `${v.toFixed(2)} em`} />
             <ToggleRow title="首行缩进" sub="中文段落首行缩进两字"
               on={settings.indent} onChange={v => update({ indent: v })} />
             <ToggleRow title="两端对齐" sub="段落左右对齐排版"
               on={settings.justify} onChange={v => update({ justify: v })} />
-          </>
+          </div>
         )}
 
         {tab === 'theme' && (

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { pushBackHandler } from '../lib/backButton'
 
 export const Sheet = ({
@@ -41,31 +41,44 @@ export const SheetTabs = ({
   </div>
 )
 
+const sliderFill = (value: number, min: number, max: number) =>
+  `${((value - min) / (max - min)) * 100}%`
+
 export const SliderRow = ({
   label, value, min, max, step, onChange, format,
+  start, end, compact,
 }: {
-  label: string
+  label?: string
   value: number
   min: number
   max: number
   step: number
   onChange: (v: number) => void
   format?: (v: number) => string
+  /** 滑块左侧元素：字母端点（如 A）或图标 */
+  start?: ReactNode
+  /** 滑块右端元素（如 B） */
+  end?: ReactNode
+  /** 紧凑模式：用于并排两列布局 */
+  compact?: boolean
 }) => (
-  <div className="setting-group">
-    <div className="setting-label">
-      <span>{label}</span>
-      <span className="value">{format ? format(value) : value}</span>
+  <div className={compact ? 'slider-cell compact' : 'slider-cell'}>
+    {label && <div className="slider-title">{label}</div>}
+    <div className="slider-main">
+      {start && <span className="slider-edge">{start}</span>}
+      <input
+        className="slider"
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        style={{ '--fill': sliderFill(value, min, max) } as CSSProperties}
+        onChange={e => onChange(parseFloat(e.target.value))}
+      />
+      <span className="slider-value">{format ? format(value) : value}</span>
+      {end && <span className="slider-edge end">{end}</span>}
     </div>
-    <input
-      className="slider"
-      type="range"
-      min={min}
-      max={max}
-      step={step}
-      value={value}
-      onChange={e => onChange(parseFloat(e.target.value))}
-    />
   </div>
 )
 

@@ -54,6 +54,7 @@ export const buildReaderCss = (
 }`)
   lines.push(`${paraSelectors} {
   font-size: ${s.fontSize}px !important;
+  font-weight: ${s.bold ? 'bold' : 'normal'} !important;
   line-height: ${s.lineHeight} !important;
   letter-spacing: ${s.letterSpacing}em;
   text-align: ${s.justify ? 'justify' : 'start'};

@@ -30,9 +30,11 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   lineHeight: 1.75,
   paraSpacing: 0.4,
   letterSpacing: 0.02,
-  margin: 8,
+  marginH: 8,
+  marginV: 8,
   indent: true,
   justify: true,
+  bold: false,
   fontPreset: 'system-serif',
   themeId: 'paper',
   customFg: '#332e26',
@@ -58,8 +60,14 @@ export const useSettings = create<SettingsState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   loaded: false,
   async load() {
-    const saved = await kvGet<ReaderSettings>('settings')
-    set({ settings: { ...DEFAULT_SETTINGS, ...saved }, loaded: true })
+    const saved = await kvGet<ReaderSettings & { margin?: number }>('settings')
+    const merged = { ...DEFAULT_SETTINGS, ...saved }
+    // 旧版本只有单一 margin 字段，迁移为水平/垂直页边距
+    if (saved?.margin != null && saved.marginH == null) {
+      merged.marginH = saved.margin
+      merged.marginV = saved.margin
+    }
+    set({ settings: merged, loaded: true })
   },
   update(patch) {
     const settings = { ...get().settings, ...patch }

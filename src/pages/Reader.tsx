@@ -916,11 +916,11 @@ function applyRendererSettings(
   const r = view.renderer
   if (!r) return
   r.setAttribute('flow', settings.flow)
-  r.setAttribute('gap', `${settings.margin}%`)
+  r.setAttribute('gap', `${settings.marginH}%`)
   // 页眉/页脚带位于正文与屏幕边缘之间：需要容纳 系统栏(inset) + 页眉高约17px + 呼吸空间
   const safe = Math.max(safePx('--safe-top'), safePx('--safe-bottom'))
   const marginPx = Math.max(56, Math.round(safe + 48),
-    Math.round(window.innerHeight * settings.margin / 100 * 0.75))
+    Math.round(window.innerHeight * settings.marginV / 100 * 0.75))
   r.setAttribute('margin', `${marginPx}px`)
   if (settings.animated) r.setAttribute('animated', '')
   else r.removeAttribute('animated')

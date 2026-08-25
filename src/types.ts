@@ -56,9 +56,14 @@ export interface ReaderSettings {
   lineHeight: number
   paraSpacing: number
   letterSpacing: number
-  margin: number
+  /** 水平页边距（占屏宽百分比） */
+  marginH: number
+  /** 垂直页边距（占屏高百分比） */
+  marginV: number
   indent: boolean
   justify: boolean
+  /** 正文加粗 */
+  bold: boolean
   fontPreset: string
   themeId: string
   customFg: string
