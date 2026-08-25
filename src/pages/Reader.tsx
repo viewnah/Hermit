@@ -373,8 +373,8 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   }
 
   // ---- navigation ----
-  // 点击翻页：tapAnimated=false 时临时移除 renderer 的 animated 属性（点击立即切换，
-  // 无 300ms 过渡），翻页完成后恢复（若全局 animated 开启）
+  // 点击翻页：禁用点击动画（tapAnimated=false）时临时移除 renderer 的 animated 属性
+  // （点击立即切换，无 300ms 过渡），翻页完成后恢复（若全局 animated 开启）
   const turnPage = useCallback((dir: 1 | -1) => {
     const v = viewRef.current
     const r = v?.renderer
@@ -411,10 +411,10 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
     if (chromeVisibleRef.current) { setChromeVisible(false); return }
     if (!scrolled && settings.tapTurn) {
       const w = window.innerWidth
-      // tapLeftNext（左手模式）：点击左侧翻下一页、右侧翻上一页
+      // tapLeftNext（左手模式）：左右两侧点击均翻下一页，仅滑动翻上一页
       if (settings.tapLeftNext) {
         if (clientX < w * 0.3) { goNext(); return }
-        if (clientX > w * 0.7) { goPrev(); return }
+        if (clientX > w * 0.7) { goNext(); return }
       } else {
         if (clientX < w * 0.3) { goPrev(); return }
         if (clientX > w * 0.7) { goNext(); return }

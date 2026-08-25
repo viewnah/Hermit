@@ -74,9 +74,9 @@ export interface ReaderSettings {
   flow: Flow
   animated: boolean
   tapTurn: boolean
-  /** 点击翻页时是否播放过渡动画（false = 点击立即切换） */
+  /** 是否禁用点击翻页动画（true = 点击立即切换，无过渡动画） */
   tapAnimated: boolean
-  /** 点击左侧翻到下一页（左手持机模式，反转左右点击区域） */
+  /** 左右两侧点击均翻到下一页（仅滑动翻上一页） */
   tapLeftNext: boolean
 }
 

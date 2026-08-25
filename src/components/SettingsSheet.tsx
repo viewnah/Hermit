@@ -372,9 +372,9 @@ export const SettingsSheet = ({
                 onChange={v => update({ flow: v })}
               />
             </div>
-            <ToggleRow title="点击翻页动画" sub="点击翻页时的过渡动画，关闭后点击立即切换"
-              on={settings.tapAnimated} onChange={v => update({ tapAnimated: v })} />
-            <ToggleRow title="左侧点击翻下一页" sub="左手持机模式：点击左侧翻下一页、右侧翻上一页"
+            <ToggleRow title="禁用点击动画" sub="开启后点击翻页立即切换，无过渡动画"
+              on={!settings.tapAnimated} onChange={v => update({ tapAnimated: !v })} />
+            <ToggleRow title="左侧点击翻下一页" sub="左右两侧点击均翻下一页，仅滑动翻上一页"
               on={settings.tapLeftNext} onChange={v => update({ tapLeftNext: v })} />
           </>
         )}
