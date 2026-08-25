@@ -580,8 +580,10 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
     doc.addEventListener('pointermove', e => {
       maxMove = Math.max(maxMove, Math.hypot(e.clientX - downX, e.clientY - downY))
       // 菜单打开时出现明显水平滑动意图（>30px 且以水平为主）：
-      // 立即退出菜单（先让出屏幕），随后 foliate 照常接收触摸完成翻页
-      if (chromeVisibleRef.current) {
+      // 立即退出菜单（先让出屏幕），随后 foliate 照常接收触摸完成翻页。
+      // 仅触摸生效：鼠标悬停移动也会触发 pointermove（无需按下），
+      // 若不加限制，唤出菜单后鼠标稍动就会误退菜单
+      if (chromeVisibleRef.current && e.pointerType === 'touch') {
         const dmx = Math.abs(e.clientX - downX)
         const dmy = Math.abs(e.clientY - downY)
         if (dmx > 30 && dmx > dmy) setChromeVisible(false)
