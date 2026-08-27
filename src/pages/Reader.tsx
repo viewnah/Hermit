@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import 'foliate-js/view.js'
 import type { FoliateRelocateDetail, FoliateSearchResult, FoliateView } from 'foliate-js/view.js'
 import { db } from '../db'
@@ -77,9 +77,10 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   // 菜单可见状态与打开时的页面位置：供 "点击退出菜单 / 翻页后自动退出" 判定
   const chromeVisibleRef = useRef(false)
   const chromeOpenCfi = useRef<string | null>(null)
-  // 拖动进度条时不自动退出菜单（松手后延迟重置，避免 relocate 事件立即触发退出）
+  // 拖动进度条/切换章节时不自动退出菜单（延迟重置，避免 relocate 事件立即触发退出）
   const progressDraggingRef = useRef(false)
   const progressDragTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const chapterNavTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   panelRef.current = panel
   onBackRef.current = onBack
   chromeVisibleRef.current = chromeVisible
@@ -87,6 +88,36 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   const theme = resolveTheme(settings)
   const scrolled = settings.flow === 'scrolled'
   scrolledRef.current = scrolled
+
+  // 扁平化 TOC，用于上一章/下一章导航
+  const flatToc = useMemo(() => {
+    const flat: { label: string; href: string }[] = []
+    const walk = (items?: TocItem[]) => {
+      for (const item of items ?? []) {
+        if (item.href) flat.push({ label: item.label ?? '未命名', href: item.href })
+        walk(item.subitems)
+      }
+    }
+    walk(view?.book?.toc as TocItem[] | undefined)
+    return flat
+  }, [view?.book?.toc])
+  const tocIndex = flatToc.findIndex(t => activeTocHref != null && t.href === activeTocHref)
+  const canPrevToc = tocIndex > 0
+  const canNextToc = tocIndex >= 0 && tocIndex < flatToc.length - 1
+  const goPrevToc = () => {
+    if (!canPrevToc) return
+    progressDraggingRef.current = true
+    if (chapterNavTimer.current) clearTimeout(chapterNavTimer.current)
+    chapterNavTimer.current = setTimeout(() => { progressDraggingRef.current = false }, 800)
+    void view?.goTo(flatToc[tocIndex - 1].href)
+  }
+  const goNextToc = () => {
+    if (!canNextToc) return
+    progressDraggingRef.current = true
+    if (chapterNavTimer.current) clearTimeout(chapterNavTimer.current)
+    chapterNavTimer.current = setTimeout(() => { progressDraggingRef.current = false }, 800)
+    void view?.goTo(flatToc[tocIndex + 1].href)
+  }
 
   // ---- open book ----
   useEffect(() => {
@@ -697,6 +728,7 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   useEffect(() => () => {
     if (searchTimer.current) clearTimeout(searchTimer.current)
     if (progressDragTimer.current) clearTimeout(progressDragTimer.current)
+    if (chapterNavTimer.current) clearTimeout(chapterNavTimer.current)
   }, [])
 
   // ---- render ----
@@ -837,7 +869,13 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
 
           <div className="reader-bottombar">
             <div className="meta-row">
-              <span>{chapter || book.title}</span>
+              <button className="meta-nav" disabled={!canPrevToc} onClick={goPrevToc} aria-label="上一章">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+              <span className="meta-chapter">{chapter || book.title}</span>
+              <button className="meta-nav" disabled={!canNextToc} onClick={goNextToc} aria-label="下一章">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
             </div>
             <div className="progress-row">
               <span className="progress-edge">

@@ -622,10 +622,33 @@ input, select {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
   font-size: 13px;
   opacity: 1;
   letter-spacing: 0.03em;
 }
+.meta-row .meta-chapter {
+  flex: 1;
+  text-align: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.meta-nav {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--chrome-fg, #f5f1e8);
+  background: transparent;
+  transition: background 0.12s ease, opacity 0.12s ease;
+}
+.meta-nav:active { background: var(--chrome-press, rgba(255, 255, 255, 0.10)); }
+.meta-nav:disabled { opacity: 0.25; }
 
 .reader-bottombar .icon-btn { color: var(--chrome-fg, #f5f1e8); width: 36px; height: 36px; }
 
