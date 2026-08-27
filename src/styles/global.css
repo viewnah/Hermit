@@ -910,10 +910,10 @@ input, select {
 .slider-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 18px 20px;
+  gap: 18px 10px;
   margin-bottom: 22px;
 }
-.slider-grid .slider-cell { margin-bottom: 0; }
+.slider-grid .slider-cell { margin-bottom: 0; min-width: 0; overflow: hidden; }
 
 /* 排版:主面板导航按钮（字体 / 更多设置） */
 .setting-nav-row {
