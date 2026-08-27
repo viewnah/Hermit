@@ -77,6 +77,9 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   // 菜单可见状态与打开时的页面位置：供 "点击退出菜单 / 翻页后自动退出" 判定
   const chromeVisibleRef = useRef(false)
   const chromeOpenCfi = useRef<string | null>(null)
+  // 拖动进度条时不自动退出菜单（松手后延迟重置，避免 relocate 事件立即触发退出）
+  const progressDraggingRef = useRef(false)
+  const progressDragTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   panelRef.current = panel
   onBackRef.current = onBack
   chromeVisibleRef.current = chromeVisible
@@ -118,8 +121,10 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
         if (d.tocItem?.href) setActiveTocHref(d.tocItem.href)
         scheduleSave()
         // 菜单打开时页面位置变化（滑动翻页/跳转）→ 自动退出菜单
+        // 进度条拖动期间不退出
         if (chromeVisibleRef.current && chromeOpenCfi.current != null
-          && d.cfi && d.cfi !== chromeOpenCfi.current) {
+          && d.cfi && d.cfi !== chromeOpenCfi.current
+          && !progressDraggingRef.current) {
           setChromeVisible(false)
         }
       })
@@ -688,9 +693,10 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
     return () => window.removeEventListener('resize', onResize)
   }, [view, ready, settings, fonts])
 
-  // 组件卸载时清理搜索防抖定时器，避免写入已卸载组件
+  // 组件卸载时清理定时器，避免写入已卸载组件
   useEffect(() => () => {
     if (searchTimer.current) clearTimeout(searchTimer.current)
+    if (progressDragTimer.current) clearTimeout(progressDragTimer.current)
   }, [])
 
   // ---- render ----
@@ -831,22 +837,42 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
 
           <div className="reader-bottombar">
             <div className="meta-row">
-              <span>{Math.round(percent * 100)}%</span>
               <span>{chapter || book.title}</span>
             </div>
-            <input
-              className="progress-slider"
-              type="range"
-              min={0}
-              max={1}
-              step={0.001}
-              value={percent}
-              onChange={e => {
-                const frac = parseFloat(e.target.value)
-                setPercent(frac)
-                void view?.goToFraction(frac)
-              }}
-            />
+            <div className="progress-row">
+              <span className="progress-edge">
+                <svg width="20" height="20" viewBox="0 0 32 24" fill="none" stroke="currentColor"
+                  strokeWidth="2" strokeLinecap="round">
+                  <circle cx="16" cy="12" r="8" />
+                  <path d="M0 12h5M27 12h5" />
+                </svg>
+              </span>
+              <input
+                className="progress-slider"
+                type="range"
+                min={0}
+                max={1}
+                step={0.001}
+                value={percent}
+                onPointerDown={() => {
+                  progressDraggingRef.current = true
+                  if (progressDragTimer.current) { clearTimeout(progressDragTimer.current); progressDragTimer.current = null }
+                }}
+                onPointerUp={() => {
+                  // 松手后延迟 600ms 再重置标志，避免 relocate 事件立即触发退出菜单
+                  progressDragTimer.current = setTimeout(() => { progressDraggingRef.current = false }, 600)
+                }}
+                onPointerCancel={() => {
+                  progressDragTimer.current = setTimeout(() => { progressDraggingRef.current = false }, 600)
+                }}
+                onChange={e => {
+                  const frac = parseFloat(e.target.value)
+                  setPercent(frac)
+                  void view?.goToFraction(frac)
+                }}
+              />
+              <span className="progress-value">{Math.round(percent * 100)}%</span>
+            </div>
             <div className="bar-actions">
               <button className="bar-action" onClick={() => setPanel(panel === 'toc' ? 'none' : 'toc')}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>

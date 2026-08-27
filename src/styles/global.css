@@ -656,7 +656,8 @@ input, select {
 .progress-slider {
   -webkit-appearance: none;
   appearance: none;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   height: 26px;
   background: transparent;
 }
@@ -673,6 +674,29 @@ input, select {
   border-radius: 50%;
   background: var(--chrome-fg, #f5f1e8);
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.22);
+}
+
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.progress-edge {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  color: var(--chrome-fg-soft, rgba(245, 241, 232, 0.45));
+}
+.progress-value {
+  flex: none;
+  min-width: 36px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--chrome-fg-soft, rgba(245, 241, 232, 0.6));
+  text-align: right;
 }
 
 /* 页眉/页脚：悬浮在正文上下边距带内（不遮挡文字），工具栏可见时隐藏 */
