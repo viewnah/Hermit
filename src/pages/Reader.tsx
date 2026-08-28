@@ -37,6 +37,8 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   const [view, setView] = useState<FoliateView | null>(null)
   const [ready, setReady] = useState(false)
   const [chromeVisible, setChromeVisible] = useState(false)
+  // 底部导航当前视图：'none' 为默认（进度滑块区+章节行展开、顶栏可见），
+  // 'toc'/'settings' 为覆盖层视图（隐藏章节行与进度区、隐藏顶栏、页眉保持显示）
   const [panel, setPanel] = useState<'none' | 'toc' | 'settings'>('none')
   const [settingsTab, setSettingsTab] = useState('type')
   const [percent, setPercent] = useState(0)
@@ -62,6 +64,11 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   const searchSeq = useRef(0)
 
   const containerRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const bottombarRef = useRef<HTMLDivElement>(null)
+  const extraRef = useRef<HTMLDivElement>(null)
+  // 底栏高度与折叠区高度：不经 React state，由 ResizeObserver 直接写 CSS 变量，
+  // 面板 bottom 逐帧跟随底栏顶边（绕开 React 渲染循环，避免动画期间跳变）
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const kosyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestDetail = useRef<FoliateRelocateDetail | null>(null)
@@ -157,6 +164,8 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
           && d.cfi && d.cfi !== chromeOpenCfi.current
           && !progressDraggingRef.current) {
           setChromeVisible(false)
+          // 覆盖层面板（目录/设置）随翻页一并退回默认视图
+          setPanel('none')
         }
       })
 
@@ -423,9 +432,14 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   }, [settings.tapAnimated])
   const goNext = useCallback(() => turnPage(1), [turnPage])
   const goPrev = useCallback(() => turnPage(-1), [turnPage])
+  // 关闭菜单（顶/底栏）：面板一并退回默认视图，避免抽屉在菜单隐藏后残留
+  const closeChrome = useCallback(() => {
+    setChromeVisible(false)
+    setPanel('none')
+  }, [])
   const toggleChrome = useCallback(() => {
     if (chromeVisibleRef.current) {
-      setChromeVisible(false)
+      closeChrome()
       return
     }
     // 记录打开菜单时的页面位置，翻页后据此自动退出
@@ -433,18 +447,25 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
     setPanel('none')
     setSearchOpen(false)
     setChromeVisible(true)
-  }, [])
+  }, [closeChrome])
+  // 设置面板入口（主题/排版/设置三 Tab）：面板已打开且重复点击同一 Tab → 关闭面板
+  // （保留导航状态；只有遮罩/返回/正文点击才会连导航一起收起）
   const openSettings = useCallback((tab: string) => {
+    if (panel === 'settings' && settingsTab === tab) {
+      setPanel('none')
+      return
+    }
     setSettingsTab(tab)
     setPanel('settings')
-  }, [])
+  }, [panel, settingsTab])
 
   const handleTap = useCallback((clientX: number) => {
-    if (panel !== 'none') { setPanel('none'); return }
+    // 面板打开时点击正文（遮罩之外的边缘情形）：直接回阅读页
+    if (panel !== 'none') { closeChrome(); return }
     // 搜索条展开时点击正文收起搜索条，不翻页
     if (searchOpen) { closeSearch(); return }
     // 菜单打开时点击正文任意位置：只退出菜单，不翻页
-    if (chromeVisibleRef.current) { setChromeVisible(false); return }
+    if (chromeVisibleRef.current) { closeChrome(); return }
     if (!scrolled && settings.tapTurn) {
       const w = window.innerWidth
       // tapLeftNext（左手模式）：左右两侧点击均翻下一页，仅滑动翻上一页
@@ -457,7 +478,7 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
       }
     }
     toggleChrome()
-  }, [panel, searchOpen, scrolled, settings.tapTurn, settings.tapLeftNext, goPrev, goNext, toggleChrome, closeSearch])
+  }, [panel, searchOpen, scrolled, settings.tapTurn, settings.tapLeftNext, goPrev, goNext, toggleChrome, closeSearch, closeChrome])
 
   tapHandlerRef.current = handleTap
 
@@ -552,6 +573,7 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
       if (dx > 10 || dy > 10) {
         touchStart = null
         setChromeVisible(false)
+        setPanel('none')
       }
     }, { capture: true, passive: true })
     doc.addEventListener('pointerdown', e => {
@@ -590,6 +612,7 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
           if (dmx > 10 || dmy > 10) {
             touchStart = null
             setChromeVisible(false)
+            setPanel('none')
           }
         }
       }
@@ -622,7 +645,10 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
       if (chromeVisibleRef.current && e.pointerType === 'touch') {
         const dmx = Math.abs(e.clientX - downX)
         const dmy = Math.abs(e.clientY - downY)
-        if (dmx > 30 && dmx > dmy) setChromeVisible(false)
+        if (dmx > 30 && dmx > dmy) {
+          setChromeVisible(false)
+          setPanel('none')
+        }
       }
       if (!pullActive) return
       const dy = e.clientY - downY
@@ -692,10 +718,14 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   }
 
   // Android 返回键：原生桥调用 window.__androidBack()，
-  // 阅读页内优先关面板，否则返回书架（见 lib/backButton.ts）
+  // 阅读页内优先关面板（先回导航态），导航态再退 / 否则返回书架（见 lib/backButton.ts）
   useEffect(() => pushBackHandler(() => {
     if (panelRef.current !== 'none') {
       setPanel('none')
+      return true
+    }
+    if (chromeVisibleRef.current) {
+      setChromeVisible(false)
       return true
     }
     onBackRef.current()
@@ -706,11 +736,12 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (searchOpen) { if (e.key === 'Escape') closeSearch(); return }
+      // 面板打开时按 Escape：先回导航态（面板关、导航栏保持）
       if (panel !== 'none') { if (e.key === 'Escape') setPanel('none'); return }
       if (e.key === 'ArrowRight' || e.key === 'PageDown') goNext()
       else if (e.key === 'ArrowLeft' || e.key === 'PageUp') goPrev()
       else if (e.key === ' ') { e.preventDefault(); goNext() }
-      else if (e.key === 'Escape') setChromeVisible(false)
+      else if (e.key === 'Escape') { setChromeVisible(false); setPanel('none') }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -723,6 +754,26 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [view, ready, settings, fonts])
+
+  // 底栏高度变化（进度滑块区展开/收起、系统栏 inset 变化）→ 直接写 CSS 变量：
+  // --panel-bottom（面板停靠位置，随动画逐帧更新，零 React 渲染开销）；
+  // --extra-h（折叠区展开高度，仅在默认视图采样，消除 max-height 死区）
+  useEffect(() => {
+    const bar = bottombarRef.current
+    const root = rootRef.current
+    if (!bar) return
+    const update = () => {
+      root?.style.setProperty('--panel-bottom', `${bar.offsetHeight}px`)
+      if (panelRef.current === 'none') {
+        const extra = extraRef.current
+        if (extra) root?.style.setProperty('--extra-h', `${extra.offsetHeight}px`)
+      }
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(bar)
+    return () => ro.disconnect()
+  }, [ready, book])
 
   // 组件卸载时清理定时器，避免写入已卸载组件
   useEffect(() => () => {
@@ -743,7 +794,8 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   }
   return (
     <div
-      className={`reader-root ${chromeVisible ? '' : 'chrome-hidden'} ${hasMark ? 'marked' : ''}`}
+      ref={rootRef}
+      className={`reader-root ${chromeVisible ? '' : 'chrome-hidden'} ${panel !== 'none' ? 'panel-open' : ''} ${hasMark ? 'marked' : ''}`}
       style={chromeStyle}
     >
       {wallpaperUrl && (
@@ -867,64 +919,81 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
             </div>
           )}
 
-          <div className="reader-bottombar">
-            <div className="meta-row">
-              <button className="meta-nav" disabled={!canPrevToc} onClick={goPrevToc} aria-label="上一章">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-              </button>
-              <span className="meta-chapter">{chapter || book.title}</span>
-              <button className="meta-nav" disabled={!canNextToc} onClick={goNextToc} aria-label="下一章">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-              </button>
-            </div>
-            <div className="progress-row">
-              <span className="progress-edge">
-                <svg width="20" height="20" viewBox="0 0 32 24" fill="none" stroke="currentColor"
-                  strokeWidth="2" strokeLinecap="round">
-                  <circle cx="16" cy="12" r="8" />
-                  <path d="M0 12h5M27 12h5" />
-                </svg>
-              </span>
-              <input
-                className="progress-slider"
-                type="range"
-                min={0}
-                max={1}
-                step={0.001}
-                value={percent}
-                onPointerDown={() => {
-                  progressDraggingRef.current = true
-                  if (progressDragTimer.current) { clearTimeout(progressDragTimer.current); progressDragTimer.current = null }
-                }}
-                onPointerUp={() => {
-                  // 松手后延迟 600ms 再重置标志，避免 relocate 事件立即触发退出菜单
-                  progressDragTimer.current = setTimeout(() => { progressDraggingRef.current = false }, 600)
-                }}
-                onPointerCancel={() => {
-                  progressDragTimer.current = setTimeout(() => { progressDraggingRef.current = false }, 600)
-                }}
-                onChange={e => {
-                  const frac = parseFloat(e.target.value)
-                  setPercent(frac)
-                  void view?.goToFraction(frac)
-                }}
-              />
-              <span className="progress-value">{Math.round(percent * 100)}%</span>
+          <div className="reader-bottombar" ref={bottombarRef}>
+            {/* 章节行（章节名 + 上一章/下一章）与进度滑块区：始终挂载，
+                目录/设置覆盖层打开时由 CSS 高度过渡平滑折叠（bottombar-extra），
+                避免 DOM 卸载导致底栏高度瞬时跳变 */}
+            <div className="bottombar-extra" ref={extraRef}>
+              <div className="meta-row">
+                <button className="meta-nav" disabled={!canPrevToc} onClick={goPrevToc} aria-label="上一章">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                </button>
+                <span className="meta-chapter">{chapter || book.title}</span>
+                <button className="meta-nav" disabled={!canNextToc} onClick={goNextToc} aria-label="下一章">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
+              </div>
+              <div className="progress-row">
+                <span className="progress-edge">
+                  <svg width="20" height="20" viewBox="0 0 32 24" fill="none" stroke="currentColor"
+                    strokeWidth="2" strokeLinecap="round">
+                    <circle cx="16" cy="12" r="8" />
+                    <path d="M0 12h5M27 12h5" />
+                  </svg>
+                </span>
+                <input
+                  className="progress-slider"
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.001}
+                  value={percent}
+                  onPointerDown={() => {
+                    progressDraggingRef.current = true
+                    if (progressDragTimer.current) { clearTimeout(progressDragTimer.current); progressDragTimer.current = null }
+                  }}
+                  onPointerUp={() => {
+                    // 松手后延迟 600ms 再重置标志，避免 relocate 事件立即触发退出菜单
+                    progressDragTimer.current = setTimeout(() => { progressDraggingRef.current = false }, 600)
+                  }}
+                  onPointerCancel={() => {
+                    progressDragTimer.current = setTimeout(() => { progressDraggingRef.current = false }, 600)
+                  }}
+                  onChange={e => {
+                    const frac = parseFloat(e.target.value)
+                    setPercent(frac)
+                    void view?.goToFraction(frac)
+                  }}
+                />
+                <span className="progress-value">{Math.round(percent * 100)}%</span>
+              </div>
             </div>
             <div className="bar-actions">
-              <button className="bar-action" onClick={() => setPanel(panel === 'toc' ? 'none' : 'toc')}>
+              <button
+                className={`bar-action ${panel === 'toc' ? 'active' : ''}`}
+                onClick={() => setPanel(p => (p === 'toc' ? 'none' : 'toc'))}
+              >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
                 <span>目录</span>
               </button>
-              <button className="bar-action" onClick={() => openSettings('theme')}>
+              <button
+                className={`bar-action ${panel === 'settings' && settingsTab === 'theme' ? 'active' : ''}`}
+                onClick={() => openSettings('theme')}
+              >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>
                 <span>主题</span>
               </button>
-              <button className="bar-action" onClick={() => openSettings('type')}>
+              <button
+                className={`bar-action ${panel === 'settings' && settingsTab === 'type' ? 'active' : ''}`}
+                onClick={() => openSettings('type')}
+              >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19 12 5l8 14"/><path d="M6.8 14.5h10.4"/></svg>
                 <span>排版</span>
               </button>
-              <button className="bar-action" onClick={() => openSettings('page')}>
+              <button
+                className={`bar-action ${panel === 'settings' && settingsTab === 'page' ? 'active' : ''}`}
+                onClick={() => openSettings('page')}
+              >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 <span>设置</span>
               </button>
@@ -940,7 +1009,8 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
           )}
 
           <div className={`toc-drawer ${panel === 'toc' ? 'open' : ''}`}>
-            <div className="toc-mask" onClick={() => setPanel('none')} />
+            {/* 点击遮罩：直接回阅读页（连同导航一起收起） */}
+            <div className="toc-mask" onClick={closeChrome} />
             <div className="toc-drawer-body">
               <TocPanel
                 open={panel === 'toc'}
@@ -963,7 +1033,7 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
 
           <SettingsSheet
             open={panel === 'settings'}
-            onClose={() => setPanel('none')}
+            onClose={closeChrome}
             onAssetsChanged={reloadAssets}
             currentBookId={bookId}
             initialTab={settingsTab}

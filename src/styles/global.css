@@ -509,9 +509,12 @@ input, select {
   bottom: 0;
   padding: 14px 18px calc(var(--safe-bottom) + 14px);
   flex-direction: column;
-  gap: 10px;
+  /* 章节区与按钮行的间距由 .bottombar-extra 的 margin-bottom 承担（可参与折叠动画） */
+  gap: 0;
   border-top: 1px solid var(--chrome-line, rgba(255, 255, 255, 0.12));
   box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.16);
+  /* 覆盖层视图（目录/设置）面板从底栏上方滑出：底栏须高于遮罩与面板，保持可见可点 */
+  z-index: 45;
 }
 
 .chrome-hidden .reader-topbar {
@@ -521,6 +524,36 @@ input, select {
 }
 .chrome-hidden .reader-bottombar {
   transform: translateY(110%);
+  opacity: 0;
+  pointer-events: none;
+}
+/* 覆盖层视图（目录/设置面板打开）：隐藏顶栏，底栏与面板保持可见 */
+.panel-open .reader-topbar {
+  transform: translateY(-110%);
+  opacity: 0;
+  pointer-events: none;
+}
+/* 章节行 + 进度滑块区：始终挂载，面板打开时以高度过渡平滑折叠（不跳变），
+   与面板滑出动画（0.28s 系）同步。
+   --extra-h 由 Reader 测量注入（默认视图下的真实展开高度）：
+   保证 max-height 过渡无死区 —— 动画前后段均真实反映高度变化 */
+.bottombar-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  overflow: hidden;
+  max-height: var(--extra-h, 200px);
+  margin-bottom: 10px;
+  opacity: 1;
+  transition:
+    max-height 0.28s cubic-bezier(0.3, 0.8, 0.3, 1),
+    margin-bottom 0.28s cubic-bezier(0.3, 0.8, 0.3, 1),
+    opacity 0.2s ease;
+}
+.panel-open .bottombar-extra {
+  max-height: 0;
+  margin-bottom: 0;
   opacity: 0;
   pointer-events: none;
 }
@@ -675,6 +708,8 @@ input, select {
   transition: transform 0.12s ease, background 0.12s ease;
 }
 .bar-action:active { transform: scale(0.93); background: var(--chrome-press, rgba(255, 255, 255, 0.10)); }
+/* 当前导航视图高亮 */
+.bar-action.active { color: var(--accent); }
 
 .progress-slider {
   -webkit-appearance: none;
@@ -755,6 +790,12 @@ input, select {
 }
 .reader-root:not(.chrome-hidden) .reader-head,
 .reader-root:not(.chrome-hidden) .reader-foot { opacity: 0; }
+/* 覆盖层视图（目录/设置面板打开）：页眉保持显示。
+   保持在遮罩之下（默认 z-index 6）、与正文一起被遮罩统一压暗，
+   避免浮到遮罩上方后衬着暗底显得颜色改变 */
+.reader-root.panel-open .reader-head {
+  opacity: 1;
+}
 
 /* ---------- bottom sheet ---------- */
 .sheet-backdrop {
@@ -780,6 +821,13 @@ input, select {
   border-radius: 22px 22px 0 0;
   box-shadow: var(--shadow);
   animation: sheet-up 0.32s cubic-bezier(0.3, 0.9, 0.3, 1) both;
+}
+/* 阅读页内的设置面板停在底栏上方滑出，避免被底栏遮住内容；
+   顶部同样为页眉预留空间（safe-top + 44px），防止页眉浮到面板上；
+   bottom 不加过渡：逐帧跟随底栏顶边，与折叠动画同步 */
+.reader-root .sheet {
+  bottom: var(--panel-bottom, 0px);
+  max-height: min(82vh, calc(100vh - var(--panel-bottom, 0px) - var(--safe-top, 0px) - 44px));
 }
 
 @keyframes sheet-up {
@@ -1233,8 +1281,11 @@ input, select {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
-  height: 82vh;
+  /* 面板停在底栏上方滑出（--panel-bottom 由 Reader 测量注入，随折叠动画实时更新，
+     不加 bottom 过渡：面板位置逐帧跟随底栏顶边，与折叠/滑出动画完全同步）；
+     顶部保留页眉区域（safe-top + 44px），避免面板盖住页眉使其颜色/对比异常 */
+  bottom: var(--panel-bottom, 0px);
+  height: min(82vh, calc(100vh - var(--panel-bottom, 0px) - var(--safe-top, 0px) - 44px));
   display: flex;
   flex-direction: column;
   background: var(--surface);
