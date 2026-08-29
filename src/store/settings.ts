@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useEffect, useState } from 'react'
 import { kvGet, kvSet } from '../db'
 import type { ReaderSettings, ThemePreset } from '../types'
 
@@ -45,6 +46,8 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   wallpaperId: null,
   wallpaperDim: 0.35,
   wallpaperBlur: 0,
+  brightness: 0.6,
+  followSystemBrightness: false,
   flow: 'paginated',
   animated: true,
   tapTurn: true,
@@ -93,3 +96,32 @@ export const isDarkColor = (hex: string): boolean => {
   const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255
   return (0.299 * r + 0.587 * g + 0.114 * b) < 128
 }
+
+// ---- 跟随系统亮度 ----
+// Web 无法直接读取系统屏幕亮度，以 prefers-color-scheme（系统深色/浅色模式）近似：
+// 浅色模式（白天）→ 默认基准亮度（无滤镜，与手动默认 60% 效果一致）；
+// 深色模式（夜间）→ 自动调暗（0.75x）
+export const SYSTEM_BRIGHTNESS = { dark: 0.45, light: 0.6 }
+
+/** 监听系统深色/浅色模式变化 */
+export const useSystemDark = (): boolean => {
+  const [dark, setDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = (e: MediaQueryListEvent) => setDark(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return dark
+}
+
+/** 计算实际生效的亮度：跟随系统时返回系统亮度，否则返回手动设置值 */
+export const effectiveBrightness = (s: ReaderSettings, systemDark: boolean): number =>
+  s.followSystemBrightness ? (systemDark ? SYSTEM_BRIGHTNESS.dark : SYSTEM_BRIGHTNESS.light) : s.brightness
+
+/** 亮度基准值：0.6 对应无滤镜（原先 100% 效果），实际滤镜值 = 亮度 / 基准 */
+export const BRIGHTNESS_BASE = 0.6
+
+// 亮度范围：线性映射，滑块/手势/浮层统一按数值显示（20-65，不带 %）
+export const BRIGHTNESS_MIN = 0.2
+export const BRIGHTNESS_MAX = 0.65

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useSettings, THEMES, FONT_PRESETS, resolveTheme } from '../store/settings'
+import { useSettings, THEMES, FONT_PRESETS, resolveTheme, BRIGHTNESS_MIN, BRIGHTNESS_MAX } from '../store/settings'
 import { Sheet, SliderRow, Segmented, ToggleRow, toast, confirmDialog } from './ui'
 import {
   deleteFont, deleteWallpaper, getFontAssets, getWallpaperAssets,
@@ -49,6 +49,17 @@ const ChevronRight = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="m9 6 6 6-6 6" />
+  </svg>
+)
+
+const IconBrightness = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v2" /><path d="M12 20v2" />
+    <path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" />
+    <path d="M2 12h2" /><path d="M20 12h2" />
+    <path d="m6.34 17.66-1.41 1.41" /><path d="m19.07 4.93-1.41 1.41" />
   </svg>
 )
 
@@ -252,6 +263,15 @@ export const SettingsSheet = ({
 
         {tab === 'theme' && (
           <>
+            {/* 跟随系统时滑块禁用（不可拖动），但保留显示当前亮度 */}
+            <SliderRow label="亮度" value={settings.brightness} min={BRIGHTNESS_MIN} max={BRIGHTNESS_MAX} step={0.01}
+              onChange={v => update({ brightness: v })}
+              // 显示数值（20-65），不带 %，按 1 递增
+              format={v => `${Math.round(v * 100)}`}
+              start={<IconBrightness />} disabled={settings.followSystemBrightness} />
+            <ToggleRow title="跟随系统" sub="亮度跟随系统亮度自动调节"
+              on={settings.followSystemBrightness} onChange={v => update({ followSystemBrightness: v })} />
+
             <div className="setting-group">
               <div className="setting-label"><span>阅读主题</span></div>
               <div className="swatch-row">

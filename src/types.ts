@@ -71,6 +71,10 @@ export interface ReaderSettings {
   wallpaperId: number | null
   wallpaperDim: number
   wallpaperBlur: number
+  /** 亮度调节，范围 0.2 ~ 0.65，默认 0.6（0.6 为基准亮度，即无滤镜效果；显示百分比以 0.65 为 100%） */
+  brightness: number
+  /** 跟随系统亮度：开启后亮度随系统深色/浅色模式自动调节，并禁用手动滑块 */
+  followSystemBrightness: boolean
   flow: Flow
   animated: boolean
   tapTurn: boolean

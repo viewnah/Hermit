@@ -1000,6 +1000,16 @@ input, select {
   transform: scale(1.12);
   box-shadow: 0 3px 12px rgba(43, 38, 32, 0.3);
 }
+/* 禁用滑块（跟随系统亮度时）：轨道与 thumb 置灰、不可交互 */
+.slider.disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.slider.disabled::-webkit-slider-thumb {
+  border-color: var(--ink-faint);
+  background-image: radial-gradient(circle, var(--ink-faint) 0 4px, transparent 4.5px);
+  box-shadow: none;
+}
 
 /* 排版:并排两列滑动条网格 */
 .slider-grid {
@@ -1233,6 +1243,51 @@ input, select {
 /* 拖动中高度跟手，不参与过渡 */
 .pull-ribbon.dragging { transition: background 0.2s ease; }
 .pull-ribbon.ready { background: var(--accent); }
+
+/* 亮度手势浮层（参考 readest：左缘胶囊，自带表面保证任何书页背景下可读） */
+.brightness-overlay {
+  position: absolute;
+  left: calc(env(safe-area-inset-left, 0px) + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--reader-bg, #f6f1e5) 90%, transparent);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  color: var(--chrome-fg, #332e26);
+  pointer-events: none;
+  animation: bri-overlay-in 0.15s ease;
+}
+@keyframes bri-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.brightness-overlay .bri-value {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.brightness-overlay .bri-track {
+  position: relative;
+  width: 6px;
+  height: 120px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 20%, transparent);
+  overflow: hidden;
+}
+.brightness-overlay .bri-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  border-radius: 999px;
+  background: currentColor;
+}
 
 .pull-tip {
   position: absolute;

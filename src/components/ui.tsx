@@ -41,12 +41,9 @@ export const SheetTabs = ({
   </div>
 )
 
-const sliderFill = (value: number, min: number, max: number) =>
-  `${((value - min) / (max - min)) * 100}%`
-
 export const SliderRow = ({
   label, value, min, max, step, onChange, format,
-  start, end, compact,
+  start, end, compact, disabled,
 }: {
   label?: string
   value: number
@@ -61,26 +58,43 @@ export const SliderRow = ({
   end?: ReactNode
   /** 紧凑模式：用于并排两列布局 */
   compact?: boolean
-}) => (
-  <div className={compact ? 'slider-cell compact' : 'slider-cell'}>
-    {label && <div className="slider-title">{label}</div>}
-    <div className="slider-main">
-      {start && <span className="slider-edge">{start}</span>}
-      <input
-        className="slider"
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        style={{ '--fill': sliderFill(value, min, max) } as CSSProperties}
-        onChange={e => onChange(parseFloat(e.target.value))}
-      />
-      <span className="slider-value">{format ? format(value) : value}</span>
-      {end && <span className="slider-edge end">{end}</span>}
+  /** 禁用滑块 */
+  disabled?: boolean
+}) => {
+  // 滑块在位置域（0-100）工作，值域线性映射
+  const toPos = (v: number) => ((v - min) / (max - min)) * 100
+  const toVal = (p: number) => min + (p / 100) * (max - min)
+  const pos = toPos(value)
+  // 位置域步长：值域 step 映射到 0-100，四舍五入到 2 位小数，
+  // 避免浮点误差导致 100 不在 step 网格上（浏览器会约束到 99.9 之类）
+  const posStep = Math.round(((step / (max - min)) * 100) * 100) / 100
+  return (
+    <div className={compact ? 'slider-cell compact' : 'slider-cell'}>
+      {label && <div className="slider-title">{label}</div>}
+      <div className="slider-main">
+        {start && <span className="slider-edge">{start}</span>}
+        <input
+          className={`slider ${disabled ? 'disabled' : ''}`}
+          type="range"
+          min={0}
+          max={100}
+          step={posStep}
+          value={pos}
+          disabled={disabled}
+          style={{ '--fill': `${pos}%` } as CSSProperties}
+          onChange={e => {
+            // 位置域 step 网格浮点误差：拖到最右端时浏览器可能约束到 99.9 而非 100，
+            // 统一按 100 处理，保证能调到最大值
+            const p = parseFloat(e.target.value)
+            onChange(toVal(p >= 99.5 ? 100 : p))
+          }}
+        />
+        <span className="slider-value">{format ? format(value) : value}</span>
+        {end && <span className="slider-edge end">{end}</span>}
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 export const Segmented = <T extends string>({
   options, value, onChange,
