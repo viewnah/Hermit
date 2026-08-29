@@ -869,12 +869,16 @@ input, select {
 
 .sheet-body {
   overflow-y: auto;
-  padding: 14px 20px calc(var(--safe-bottom) + 26px);
+  padding: 14px 20px calc(var(--safe-bottom) + 16px);
 }
 
 /* ---------- settings widgets ---------- */
 .setting-group {
   margin-bottom: 22px;
+}
+/* 最后一个设置组：去掉底部 margin，避免与面板底部 padding 叠加产生多余空白 */
+.sheet-body .setting-group:last-child {
+  margin-bottom: 0;
 }
 
 .setting-label {
@@ -1103,7 +1107,7 @@ input, select {
 .swatch {
   position: relative;
   width: 64px;
-  height: 56px;
+  height: 40px;
   border-radius: 10px;
   border: 2px solid transparent;
   overflow: hidden;
