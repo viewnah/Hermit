@@ -1159,28 +1159,24 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
                 onClick={() => setPanel(p => (p === 'toc' ? 'none' : 'toc'))}
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
-                <span>目录</span>
               </button>
               <button
                 className={`bar-action ${panel === 'settings' && settingsTab === 'theme' ? 'active' : ''}`}
                 onClick={() => openSettings('theme')}
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>
-                <span>主题</span>
               </button>
               <button
                 className={`bar-action ${panel === 'settings' && settingsTab === 'type' ? 'active' : ''}`}
                 onClick={() => openSettings('type')}
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19 12 5l8 14"/><path d="M6.8 14.5h10.4"/></svg>
-                <span>排版</span>
               </button>
               <button
                 className={`bar-action ${panel === 'settings' && settingsTab === 'page' ? 'active' : ''}`}
                 onClick={() => openSettings('page')}
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                <span>翻页</span>
               </button>
             </div>
           </div>
