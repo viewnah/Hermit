@@ -11,7 +11,7 @@ import type { Flow } from '../types'
 const TAB_TITLES: Record<string, string> = {
   type: '排版',
   theme: '主题',
-  page: '设置',
+  page: '翻页',
   sync: '同步',
 }
 
