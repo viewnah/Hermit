@@ -74,7 +74,7 @@ export const TocPanel = ({
 
   const onGripPointerMove = (e: React.PointerEvent) => {
     const drag = gripDragRef.current
-    if (!drag) return
+    if (!drag?.body) return
     const dy = Math.max(0, e.clientY - drag.startY)
     drag.body.style.transform = `translateY(${dy}px)`
   }
@@ -82,7 +82,7 @@ export const TocPanel = ({
   const onGripPointerUp = (e: React.PointerEvent) => {
     const drag = gripDragRef.current
     gripDragRef.current = null
-    if (!drag) return
+    if (!drag?.body) return
     const dy = e.clientY - drag.startY
     drag.body.style.transition = ''
     if (dy > 100) {
