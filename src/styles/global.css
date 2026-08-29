@@ -1203,6 +1203,20 @@ input, select {
   padding: 0;
 }
 
+/* 自定义主题名称输入框 */
+.theme-name-input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--hairline);
+  background: var(--paper);
+  font-size: 15px;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+.theme-name-input:focus { border-color: var(--accent); }
+
 /* toggle */
 .toggle {
   position: relative;

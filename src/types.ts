@@ -66,8 +66,8 @@ export interface ReaderSettings {
   bold: boolean
   fontPreset: string
   themeId: string
-  customFg: string
-  customBg: string
+  /** 用户自定义主题列表（themeId 指向其中某个 id 或内置主题 id） */
+  customThemes: CustomTheme[]
   wallpaperId: number | null
   wallpaperDim: number
   wallpaperBlur: number
@@ -90,6 +90,14 @@ export interface ThemePreset {
   fg: string
   bg: string
   dark: boolean
+}
+
+/** 用户自定义主题：id 为本地生成的唯一标识（如 custom-<时间戳>） */
+export interface CustomTheme {
+  id: string
+  name: string
+  fg: string
+  bg: string
 }
 
 export interface WebDavConfig {

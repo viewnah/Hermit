@@ -6,7 +6,7 @@ import {
   importFontFile, importWallpaperFile, loadAssets,
 } from '../lib/assetService'
 import { SyncPanel } from './SyncPanel'
-import type { Flow } from '../types'
+import type { Flow, CustomTheme } from '../types'
 
 const TAB_TITLES: Record<string, string> = {
   type: '排版',
@@ -275,7 +275,17 @@ export const SettingsSheet = ({
             <div className="setting-group">
               <div className="setting-label"><span>阅读主题</span></div>
               <div className="swatch-row">
-                {THEMES.filter(t => t.id !== 'custom').map(t => (
+                {THEMES.map(t => (
+                  <button
+                    key={t.id}
+                    className={`swatch ${settings.themeId === t.id ? 'selected' : ''}`}
+                    style={{ background: t.bg, color: t.fg }}
+                    onClick={() => update({ themeId: t.id })}
+                  >
+                    <span className="name">{t.name}</span>
+                  </button>
+                ))}
+                {settings.customThemes.map(t => (
                   <button
                     key={t.id}
                     className={`swatch ${settings.themeId === t.id ? 'selected' : ''}`}
@@ -286,32 +296,72 @@ export const SettingsSheet = ({
                   </button>
                 ))}
                 <button
-                  className={`swatch ${settings.themeId === 'custom' ? 'selected' : ''}`}
-                  style={{ background: settings.customBg, color: settings.customFg }}
-                  onClick={() => update({ themeId: 'custom' })}
+                  className="swatch"
+                  style={{ background: 'var(--surface-2)', color: 'var(--ink-soft)' }}
+                  onClick={() => {
+                    const t: CustomTheme = {
+                      id: `custom-${Date.now()}`,
+                      name: `自定义 ${settings.customThemes.length + 1}`,
+                      fg: '#332e26',
+                      bg: '#f6f1e5',
+                    }
+                    update({ customThemes: [...settings.customThemes, t], themeId: t.id })
+                  }}
                 >
-                  <span className="name">自定义</span>
+                  <span style={{ fontSize: 26 }}>＋</span>
                 </button>
               </div>
             </div>
 
-            {settings.themeId === 'custom' && (
-              <div className="setting-group">
-                <div className="setting-label"><span>自定义颜色</span></div>
-                <div style={{ display: 'flex', gap: 16 }}>
-                  <label className="color-input">
-                    <input type="color" value={settings.customBg}
-                      onChange={e => update({ customBg: e.target.value })} />
-                    <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>背景</span>
-                  </label>
-                  <label className="color-input">
-                    <input type="color" value={settings.customFg}
-                      onChange={e => update({ customFg: e.target.value })} />
-                    <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>文字</span>
-                  </label>
+            {(() => {
+              const cur = settings.customThemes.find(t => t.id === settings.themeId)
+              if (!cur) return null
+              const patch = (p: Partial<CustomTheme>) =>
+                update({ customThemes: settings.customThemes.map(t => t.id === cur.id ? { ...t, ...p } : t) })
+              return (
+                <div className="setting-group">
+                  <div className="setting-label"><span>自定义主题</span></div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <input
+                      className="theme-name-input"
+                      type="text"
+                      value={cur.name}
+                      maxLength={12}
+                      placeholder="主题名称"
+                      onChange={e => patch({ name: e.target.value })}
+                    />
+                    <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                      <label className="color-input">
+                        <input type="color" value={cur.bg}
+                          onChange={e => patch({ bg: e.target.value })} />
+                        <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>背景</span>
+                      </label>
+                      <label className="color-input">
+                        <input type="color" value={cur.fg}
+                          onChange={e => patch({ fg: e.target.value })} />
+                        <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>文字</span>
+                      </label>
+                      <button
+                        className="btn ghost small"
+                        style={{ marginLeft: 'auto' }}
+                        onClick={() => {
+                          void confirmDialog(`删除主题「${cur.name}」？`, { confirmLabel: '删除' }).then(ok => {
+                            if (!ok) return
+                            const rest = settings.customThemes.filter(t => t.id !== cur.id)
+                            update({
+                              customThemes: rest,
+                              themeId: settings.themeId === cur.id ? 'paper' : settings.themeId,
+                            })
+                          })
+                        }}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
             <div className="setting-group">
               <div className="setting-label"><span>壁纸</span></div>

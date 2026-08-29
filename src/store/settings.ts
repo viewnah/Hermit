@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { useEffect, useState } from 'react'
 import { kvGet, kvSet } from '../db'
-import type { ReaderSettings, ThemePreset } from '../types'
+import type { ReaderSettings, ThemePreset, CustomTheme } from '../types'
 
 export const THEMES: ThemePreset[] = [
   { id: 'paper', name: '素纸', fg: '#000000', bg: '#f5f5f5', dark: false },
@@ -9,7 +9,6 @@ export const THEMES: ThemePreset[] = [
   { id: 'bamboo', name: '竹青', fg: '#000000', bg: '#d3e0c9', dark: false },
   { id: 'night', name: '玄夜', fg: '#c9c2b2', bg: '#232019', dark: true },
   { id: 'ink', name: '墨池', fg: '#a89f8d', bg: '#0e0d0b', dark: true },
-  { id: 'custom', name: '自定义', fg: '#332e26', bg: '#f6f1e5', dark: false },
 ]
 
 export interface FontPreset {
@@ -41,8 +40,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   bold: false,
   fontPreset: 'default',
   themeId: 'paper',
-  customFg: '#332e26',
-  customBg: '#f6f1e5',
+  customThemes: [],
   wallpaperId: null,
   wallpaperDim: 0.35,
   wallpaperBlur: 0,
@@ -66,7 +64,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   loaded: false,
   async load() {
-    const saved = await kvGet<ReaderSettings & { margin?: number }>('settings')
+    const saved = await kvGet<ReaderSettings & { margin?: number; customFg?: string; customBg?: string }>('settings')
     const merged = { ...DEFAULT_SETTINGS, ...saved }
     // 旧版本只有单一 margin 字段，迁移为水平/垂直页边距
     if (saved?.margin != null && saved.marginH == null) {
@@ -75,6 +73,26 @@ export const useSettings = create<SettingsState>((set, get) => ({
     }
     // 旧版本"默认衬线"更名为"默认字体"（使用 EPUB 自带字体）
     if (merged.fontPreset === 'system-serif') merged.fontPreset = 'default'
+    // 旧版本只有一组自定义颜色（customFg/customBg）：迁移为第一个自定义主题。
+    // 仅当尚无任何自定义主题时迁移，避免旧字段残留导致重复添加
+    if ((saved?.customFg != null || saved?.customBg != null) && !(merged.customThemes ?? []).length) {
+      const legacy: CustomTheme = {
+        id: `custom-${Date.now()}`,
+        name: '自定义',
+        fg: saved.customFg ?? '#332e26',
+        bg: saved.customBg ?? '#f6f1e5',
+      }
+      merged.customThemes = [legacy]
+      if (merged.themeId === 'custom') merged.themeId = legacy.id
+    }
+    // 清除旧字段，避免残留到下次保存
+    delete (merged as Record<string, unknown>).customFg
+    delete (merged as Record<string, unknown>).customBg
+    // 旧版本 themeId 指向已删除的自定义主题：回退到默认主题
+    if (merged.themeId.startsWith('custom-')
+      && !(merged.customThemes ?? []).some(t => t.id === merged.themeId)) {
+      merged.themeId = 'paper'
+    }
     set({ settings: merged, loaded: true })
   },
   update(patch) {
@@ -85,8 +103,10 @@ export const useSettings = create<SettingsState>((set, get) => ({
 }))
 
 export const resolveTheme = (s: ReaderSettings): ThemePreset => {
-  if (s.themeId === 'custom')
-    return { id: 'custom', name: '自定义', fg: s.customFg, bg: s.customBg, dark: isDarkColor(s.customBg) }
+  // 自定义主题优先：themeId 指向 customThemes 中的某个主题
+  const custom = (s.customThemes ?? []).find(t => t.id === s.themeId)
+  if (custom)
+    return { id: custom.id, name: custom.name, fg: custom.fg, bg: custom.bg, dark: isDarkColor(custom.bg) }
   return THEMES.find(t => t.id === s.themeId) ?? THEMES[0]
 }
 
