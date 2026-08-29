@@ -1207,6 +1207,7 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
             <div className="toc-drawer-body">
               <TocPanel
                 open={panel === 'toc'}
+                onClose={closeChrome}
                 toc={view?.book?.toc as TocItem[] | undefined}
                 activeHref={activeTocHref}
                 onNavigate={href => {

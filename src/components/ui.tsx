@@ -14,7 +14,6 @@ export const Sheet = ({
     <>
       <div className="sheet-backdrop" onClick={onClose} />
       <div className="sheet" role="dialog" aria-label={title}>
-        <div className="sheet-grip" />
         {children}
       </div>
     </>

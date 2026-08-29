@@ -834,15 +834,6 @@ input, select {
   to { transform: none; opacity: 1; }
 }
 
-.sheet-grip {
-  width: 40px;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--hairline);
-  margin: 10px auto 4px;
-  flex: none;
-}
-
 .sheet-tabs {
   display: flex;
   gap: 4px;
@@ -1376,7 +1367,7 @@ input, select {
   padding: 10px 0 calc(var(--safe-bottom) + 16px);
 }
 
-/* 顶部滑动把手 */
+/* 顶部滑动把手：可向下拖动关闭面板 */
 .toc-grip {
   width: 40px;
   height: 4px;
@@ -1384,7 +1375,10 @@ input, select {
   background: var(--hairline);
   margin: 0 auto 12px;
   flex: none;
+  touch-action: none;
+  cursor: grab;
 }
+.toc-grip:active { cursor: grabbing; }
 
 /* 双标签胶囊 */
 .toc-tabs {

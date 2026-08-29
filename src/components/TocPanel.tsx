@@ -36,7 +36,7 @@ const countNodes = (nodes: TreeNode[]): number =>
 
 export const TocPanel = ({
   toc, activeHref, onNavigate, bookTitle, bookTotalPages,
-  bookmarks, currentMarked, onAddBookmark, onGoToBookmark, onDeleteBookmark, open,
+  bookmarks, currentMarked, onAddBookmark, onGoToBookmark, onDeleteBookmark, open, onClose,
 }: {
   toc: TocItem[] | undefined
   activeHref: string | null
@@ -49,6 +49,7 @@ export const TocPanel = ({
   onGoToBookmark: (bm: BookmarkRecord) => void
   onDeleteBookmark: (bm: BookmarkRecord) => void
   open: boolean
+  onClose: () => void
 }) => {
   const [tab, setTab] = useState<'toc' | 'marks'>('toc')
   // 切换方向：marks 在右（左滑进入），toc 在左（右滑进入），用于滑入动画方向
@@ -58,6 +59,39 @@ export const TocPanel = ({
   const scrollRef = useRef<HTMLDivElement>(null)
   // 左右滑动切换目录/书签：记录起点，松手时判定水平位移
   const swipeRef = useRef<{ x: number; y: number } | null>(null)
+  // 小白条拖拽关闭：向下拖动跟手，超过阈值松手关闭面板
+  const gripRef = useRef<HTMLDivElement>(null)
+  const gripDragRef = useRef<{ startY: number; body: HTMLElement | null } | null>(null)
+
+  const onGripPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    const body = gripRef.current?.closest('.toc-drawer-body') as HTMLElement | null
+    if (!body) return
+    gripDragRef.current = { startY: e.clientY, body }
+    body.style.transition = 'none'
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
+
+  const onGripPointerMove = (e: React.PointerEvent) => {
+    const drag = gripDragRef.current
+    if (!drag) return
+    const dy = Math.max(0, e.clientY - drag.startY)
+    drag.body.style.transform = `translateY(${dy}px)`
+  }
+
+  const onGripPointerUp = (e: React.PointerEvent) => {
+    const drag = gripDragRef.current
+    gripDragRef.current = null
+    if (!drag) return
+    const dy = e.clientY - drag.startY
+    drag.body.style.transition = ''
+    if (dy > 100) {
+      drag.body.style.transform = ''
+      onClose()
+    } else {
+      drag.body.style.transform = ''
+    }
+  }
 
   const switchTab = (next: 'toc' | 'marks') => {
     if (next === tab) return
@@ -168,7 +202,14 @@ export const TocPanel = ({
 
   return (
     <div className="toc-panel" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-      <div className="toc-grip" />
+      <div
+        ref={gripRef}
+        className="toc-grip"
+        onPointerDown={onGripPointerDown}
+        onPointerMove={onGripPointerMove}
+        onPointerUp={onGripPointerUp}
+        onPointerCancel={onGripPointerUp}
+      />
       <div className="toc-tabs">
         <button className={`toc-tab ${tab === 'toc' ? 'on' : ''}`} onClick={() => switchTab('toc')}>目录</button>
         <button className={`toc-tab ${tab === 'marks' ? 'on' : ''}`} onClick={() => switchTab('marks')}>
