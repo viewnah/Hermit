@@ -44,8 +44,6 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   // 底部导航当前视图：'none' 为默认（进度滑块区+章节行展开、顶栏可见），
   // 'toc'/'settings' 为覆盖层视图（隐藏章节行与进度区、隐藏顶栏、页眉保持显示）
   const [panel, setPanel] = useState<'none' | 'toc' | 'settings'>('none')
-  // 进度选项：导航栏"进度"按钮控制章节行+进度条展开/折叠，进入导航时默认打开
-  const [progressOpen, setProgressOpen] = useState(true)
   const [settingsTab, setSettingsTab] = useState('type')
   const [percent, setPercent] = useState(0)
   const [chapter, setChapter] = useState('')
@@ -86,7 +84,6 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   const scrolledRef = useRef(false)
   const toggleBookmarkRef = useRef<() => void>(() => {})
   const panelRef = useRef(panel)
-  const progressOpenRef = useRef(true)
   const onBackRef = useRef(onBack)
   // 亮度手势：监听器常驻 iframe 文档，运行时值经 ref 读取（避免闭包过期）
   const settingsRef = useRef(settings)
@@ -105,7 +102,6 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   const progressDragTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const chapterNavTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   panelRef.current = panel
-  progressOpenRef.current = progressOpen
   onBackRef.current = onBack
   chromeVisibleRef.current = chromeVisible
   settingsRef.current = settings
@@ -469,19 +465,8 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
     chromeOpenCfi.current = latestDetail.current?.cfi ?? null
     setPanel('none')
     setSearchOpen(false)
-    // 进入导航时默认展开进度选项
-    setProgressOpen(true)
     setChromeVisible(true)
   }, [closeChrome])
-  // 进度选项：面板打开时点击 → 回导航态并展开进度；导航态点击 → 切换展开/折叠
-  const toggleProgress = useCallback(() => {
-    if (panel !== 'none') {
-      setPanel('none')
-      setProgressOpen(true)
-      return
-    }
-    setProgressOpen(p => !p)
-  }, [panel])
   // 设置面板入口（主题/排版/设置三 Tab）：面板已打开且重复点击同一 Tab → 关闭面板
   // （保留导航状态；只有遮罩/返回/正文点击才会连导航一起收起）
   const openSettings = useCallback((tab: string) => {
@@ -935,13 +920,13 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
     ro.observe(bar)
     // 首次采样展开高度（此时无过渡动画）
     const extra = extraRef.current
-    if (extra && panelRef.current === 'none' && progressOpenRef.current) {
+    if (extra && panelRef.current === 'none') {
       root?.style.setProperty('--extra-h', `${extra.offsetHeight}px`)
     }
     // 折叠/展开动画结束后采样，保证 max-height 过渡无死区
     const onTransitionEnd = (e: TransitionEvent) => {
       if (e.propertyName !== 'max-height') return
-      if (panelRef.current === 'none' && progressOpenRef.current && extra) {
+      if (panelRef.current === 'none' && extra) {
         root?.style.setProperty('--extra-h', `${extra.offsetHeight}px`)
       }
     }
@@ -977,7 +962,7 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   return (
     <div
       ref={rootRef}
-      className={`reader-root ${chromeVisible ? '' : 'chrome-hidden'} ${panel !== 'none' ? 'panel-open' : ''} ${progressOpen ? '' : 'progress-hidden'} ${hasMark ? 'marked' : ''}`}
+      className={`reader-root ${chromeVisible ? '' : 'chrome-hidden'} ${panel !== 'none' ? 'panel-open' : ''} ${hasMark ? 'marked' : ''}`}
       style={{ ...chromeStyle, filter: filterBrightness !== 1 ? `brightness(${filterBrightness})` : undefined }}
     >
       {wallpaperUrl && (
@@ -1169,13 +1154,6 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
               </div>
             </div>
             <div className="bar-actions">
-              <button
-                className={`bar-action ${panel === 'none' && progressOpen ? 'active' : ''}`}
-                onClick={toggleProgress}
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
-                <span>进度</span>
-              </button>
               <button
                 className={`bar-action ${panel === 'toc' ? 'active' : ''}`}
                 onClick={() => setPanel(p => (p === 'toc' ? 'none' : 'toc'))}

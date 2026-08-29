@@ -551,8 +551,7 @@ input, select {
     margin-bottom 0.28s cubic-bezier(0.3, 0.8, 0.3, 1),
     opacity 0.2s ease;
 }
-.panel-open .bottombar-extra,
-.progress-hidden .bottombar-extra {
+.panel-open .bottombar-extra {
   max-height: 0;
   margin-bottom: 0;
   opacity: 0;
@@ -688,7 +687,7 @@ input, select {
 
 .bar-actions {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   /* 父级 .reader-bottombar 是 align-items:center 的纵向 flex，
      不显式占满整行会收缩到内容宽度并居中，导致按钮挤在中间 */
   width: 100%;
