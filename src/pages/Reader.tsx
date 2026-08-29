@@ -1044,7 +1044,7 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
               <button className="icon-btn" onClick={onBack} aria-label="返回">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
               </button>
-              <div className="reader-title">{book.title}{chapter ? ` · ${chapter}` : ''}</div>
+              <div className="reader-title">{book.title}</div>
               <div className="reader-topbar-actions">
                 <button
                   className={`icon-btn ${hasMark ? 'active' : ''}`}
