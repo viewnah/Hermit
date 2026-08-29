@@ -955,6 +955,18 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
     ['--chrome-fg-soft' as string]: hexToRgba(theme.fg, 0.45),
     ['--chrome-line' as string]: hexToRgba(theme.fg, 0.28),
     ['--chrome-press' as string]: theme.dark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(0, 0, 0, 0.06)',
+    // 面板（目录/设置）跟随阅读主题：覆盖全局 --surface/--ink 等变量，
+    // 使弹层背景、文字、分隔线与主题色一致（仅作用于阅读页，书架页不受影响）
+    ['--surface' as string]: theme.bg,
+    ['--surface-2' as string]: `color-mix(in srgb, ${theme.bg} 90%, ${theme.fg})`,
+    ['--paper' as string]: `color-mix(in srgb, ${theme.bg} 90%, ${theme.dark ? '#000' : theme.fg})`,
+    ['--ink' as string]: theme.fg,
+    ['--ink-soft' as string]: hexToRgba(theme.fg, 0.62),
+    ['--ink-faint' as string]: hexToRgba(theme.fg, 0.4),
+    ['--hairline' as string]: hexToRgba(theme.fg, 0.18),
+    ['--accent' as string]: theme.dark ? '#cf6a5c' : '#b3423a',
+    ['--accent-soft' as string]: theme.dark ? 'rgba(207, 106, 92, 0.16)' : 'rgba(179, 66, 58, 0.12)',
+    ['--shadow' as string]: theme.dark ? '0 8px 32px rgba(0, 0, 0, 0.5)' : '0 8px 32px rgba(43, 38, 32, 0.14)',
   }
   // 亮度：以 0.6 为基准（无滤镜），实际滤镜值 = 亮度 / 0.6，保证默认 60% 即原先 100% 效果
   const brightness = effectiveBrightness(settings, systemDark)

@@ -4,9 +4,9 @@ import { kvGet, kvSet } from '../db'
 import type { ReaderSettings, ThemePreset } from '../types'
 
 export const THEMES: ThemePreset[] = [
-  { id: 'paper', name: '素纸', fg: '#332e26', bg: '#f6f1e5', dark: false },
-  { id: 'sepia', name: '黄卷', fg: '#4c4130', bg: '#eee0c2', dark: false },
-  { id: 'bamboo', name: '竹青', fg: '#2e3b30', bg: '#d3e0c9', dark: false },
+  { id: 'paper', name: '素纸', fg: '#000000', bg: '#f5f5f5', dark: false },
+  { id: 'sepia', name: '黄卷', fg: '#000000', bg: '#eee0c2', dark: false },
+  { id: 'bamboo', name: '竹青', fg: '#000000', bg: '#d3e0c9', dark: false },
   { id: 'night', name: '玄夜', fg: '#c9c2b2', bg: '#232019', dark: true },
   { id: 'ink', name: '墨池', fg: '#a89f8d', bg: '#0e0d0b', dark: true },
   { id: 'custom', name: '自定义', fg: '#332e26', bg: '#f6f1e5', dark: false },
