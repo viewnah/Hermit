@@ -283,7 +283,6 @@ export const SettingsSheet = ({
                     onClick={() => update({ themeId: t.id })}
                   >
                     <span className="name">{t.name}</span>
-                    <span style={{ fontSize: 12 }}>文墨</span>
                   </button>
                 ))}
                 <button
@@ -292,7 +291,6 @@ export const SettingsSheet = ({
                   onClick={() => update({ themeId: 'custom' })}
                 >
                   <span className="name">自定义</span>
-                  <span style={{ fontSize: 12 }}>文墨</span>
                 </button>
               </div>
             </div>
