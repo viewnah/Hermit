@@ -443,6 +443,10 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
     const v = viewRef.current
     const r = v?.renderer
     if (!v) return
+    // 阅读结束提示：已在最后一页时继续翻下一页 → 提示（翻到最后一页本身不提示）
+    if (dir === 1 && r?.atEnd) {
+      toast('已读完本书')
+    }
     const hadAnim = r?.hasAttribute('animated') ?? false
     if (hadAnim && !settings.tapAnimated) r?.removeAttribute('animated')
     void (dir === 1 ? v.next() : v.prev()).finally(() => {

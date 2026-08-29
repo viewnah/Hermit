@@ -32,6 +32,8 @@ declare module 'foliate-js/view.js' {
     goTo(target: unknown): Promise<void>
     /** 当前页序号（0 基，按窗口中心判定） */
     page: number
+    /** 是否已处于末尾（最后一页且无后续章节） */
+    atEnd: boolean
   }
 
   export interface FoliateSearchExcerpt {
