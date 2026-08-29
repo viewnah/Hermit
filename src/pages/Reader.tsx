@@ -175,10 +175,13 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
         if (d.tocItem?.href) setActiveTocHref(d.tocItem.href)
         scheduleSave()
         // 菜单打开时页面位置变化（滑动翻页/跳转）→ 自动退出菜单
-        // 进度条拖动期间不退出
+        // 进度条拖动期间不退出；设置（页边距/字号等）改动引起的重新排版也会发
+        // relocate 且 cfi 必然变化，但这不是用户导航，需在宽限窗口内忽略，
+        // 否则拖动设置滑块时面板会被立即收起
         if (chromeVisibleRef.current && chromeOpenCfi.current != null
           && d.cfi && d.cfi !== chromeOpenCfi.current
-          && !progressDraggingRef.current) {
+          && !progressDraggingRef.current
+          && Date.now() - lastSettingsApplyAt > 800) {
           setChromeVisible(false)
           // 覆盖层面板（目录/设置）随翻页一并退回默认视图
           setPanel('none')
@@ -1242,6 +1245,10 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   )
 }
 
+// 最近一次设置改动的时间戳：设置引起的重新排版会触发 relocate（cfi 变化），
+// relocate 里的"翻页自动退出菜单"逻辑据此在宽限窗口内忽略，避免拖滑块时面板被收起
+let lastSettingsApplyAt = 0
+
 function applyRendererSettings(
   view: FoliateView,
   settings: ReturnType<typeof useSettings.getState>['settings'],
@@ -1249,12 +1256,27 @@ function applyRendererSettings(
 ) {
   const r = view.renderer
   if (!r) return
+  lastSettingsApplyAt = Date.now()
   r.setAttribute('flow', settings.flow)
   r.setAttribute('gap', `${settings.marginH}%`)
-  // 页眉/页脚位于正文与屏幕边缘之间：需要容纳 系统栏(inset) + 正文上下留白
-  const safe = Math.max(safePx('--safe-top'), safePx('--safe-bottom'))
-  const marginPx = Math.max(16, Math.round(safe + window.innerHeight * settings.marginV / 100 * 0.5))
-  r.setAttribute('margin', `${marginPx}px`)
+  // 页眉/页脚位于正文与屏幕边缘之间：需要容纳 系统栏(inset) + 正文上下留白。
+  // 上下按各自的安全区 inset 分别计算，不再取 max——否则较小的一侧（通常是底部
+  // 手势条）被顶部状态栏高度撑大，形成"底部多出一截隐藏边距"。
+  const halfV = window.innerHeight * settings.marginV / 100 * 0.5
+  const marginFor = (inset: number) => Math.max(16, Math.round(inset + halfV))
+  const marginTopPx = marginFor(safePx('--safe-top'))
+  const marginBottomPx = marginFor(safePx('--safe-bottom'))
+  // margin：单值基准，供滚动模式 padding（margin*1.5）与图片高度约束使用，
+  // 取两侧较大值保证任何模式下系统栏都被覆盖
+  r.setAttribute('margin', `${Math.max(marginTopPx, marginBottomPx)}px`)
+  // margin-top/bottom：分页模式下外层上下留白带各自精确分配
+  r.setAttribute('margin-top', `${marginTopPx}px`)
+  r.setAttribute('margin-bottom', `${marginBottomPx}px`)
+  // 应用层页眉/页脚（.reader-head/.reader-foot）与 paginator 留白带对齐：
+  // 覆盖层以带高为自身高度、文字垂直居中，不再用固定 16px 偏移——
+  // 否则 marginV 调小后留白带矮于 16px 偏移时，页眉会压住正文第一行
+  document.documentElement.style.setProperty('--head-band', `${marginTopPx}px`)
+  document.documentElement.style.setProperty('--foot-band', `${marginBottomPx}px`)
   if (settings.animated) r.setAttribute('animated', '')
   else r.removeAttribute('animated')
   r.setStyles?.(buildReaderCss(settings, fonts))

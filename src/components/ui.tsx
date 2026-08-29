@@ -85,7 +85,11 @@ export const SliderRow = ({
             // 位置域 step 网格浮点误差：拖到最右端时浏览器可能约束到 99.9 而非 100，
             // 统一按 100 处理，保证能调到最大值
             const p = parseFloat(e.target.value)
-            onChange(toVal(p >= 99.5 ? 100 : p))
+            const raw = toVal(p >= 99.5 ? 100 : p)
+            // 位置域步长（step/(max-min)*100）往往除不尽（如 min=3,max=16,step=1 → 7.69），
+            // 映射回值域会得到 3.99997 这类小数，把值吸附回 step 网格再消除浮点尾差
+            const snapped = Math.round((raw - min) / step) * step + min
+            onChange(Number(snapped.toFixed(4)))
           }}
         />
         <span className="slider-value">{format ? format(value) : value}</span>

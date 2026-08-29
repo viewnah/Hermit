@@ -311,7 +311,7 @@ class View {
             ...(vertical
                 ? { 'width': `${width}px` }
                 : { 'height': `${height}px` }),
-            'padding': vertical ? `${margin / 2}px ${gap}px` : `${margin / 2}px ${gap / 2}px`,
+            'padding': vertical ? `${margin / 2}px ${gap}px` : `0 ${gap / 2}px`,
             'overflow': 'hidden',
             // force wrap long words
             'overflow-wrap': 'break-word',
@@ -415,7 +415,7 @@ class View {
 // NOTE: everything here assumes the so-called "negative scroll type" for RTL
 export class Paginator extends HTMLElement {
     static observedAttributes = [
-        'flow', 'gap', 'margin',
+        'flow', 'gap', 'margin', 'margin-top', 'margin-bottom',
         'max-inline-size', 'max-block-size', 'max-column-count',
     ]
     #root = this.attachShadow({ mode: 'closed' })
@@ -458,6 +458,9 @@ export class Paginator extends HTMLElement {
         #top {
             --_gap: 7%;
             --_margin: 48px;
+            /* 上下留白带可分别覆盖（margin-top / margin-bottom 属性），默认回落到 --_margin */
+            --_margin-top: var(--_margin);
+            --_margin-bottom: var(--_margin);
             --_max-inline-size: 720px;
             --_max-block-size: 1440px;
             --_max-column-count: 2;
@@ -474,9 +477,9 @@ export class Paginator extends HTMLElement {
                 var(--_half-gap)
                 minmax(0, 1fr);
             grid-template-rows:
-                minmax(var(--_margin), 1fr)
+                minmax(var(--_margin-top), 1fr)
                 minmax(0, var(--_max-height))
-                minmax(var(--_margin), 1fr);
+                minmax(var(--_margin-bottom), 1fr);
             &.vertical {
                 --_max-column-count-spread: var(--_max-column-count-portrait);
                 --_max-width: var(--_max-block-size);
@@ -516,8 +519,9 @@ export class Paginator extends HTMLElement {
         }
         #header, #footer {
             display: grid;
-            height: var(--_margin);
         }
+        #header { height: var(--_margin-top); }
+        #footer { height: var(--_margin-bottom); }
         :is(#header, #footer) > * {
             display: flex;
             align-items: center;
@@ -624,6 +628,8 @@ export class Paginator extends HTMLElement {
                 break
             case 'gap':
             case 'margin':
+            case 'margin-top':
+            case 'margin-bottom':
             case 'max-block-size':
             case 'max-column-count':
                 this.#top.style.setProperty('--_' + name, value)

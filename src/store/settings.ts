@@ -71,6 +71,9 @@ export const useSettings = create<SettingsState>((set, get) => ({
       merged.marginH = saved.margin
       merged.marginV = saved.margin
     }
+    // 旧版本滑块浮点误差可能存入 3.99997 这类小数（页边距滑块 step=1），加载时归一
+    merged.marginH = Math.round(merged.marginH)
+    merged.marginV = Math.round(merged.marginV)
     // 旧版本"默认衬线"更名为"默认字体"（使用 EPUB 自带字体）
     if (merged.fontPreset === 'system-serif') merged.fontPreset = 'default'
     // 旧版本只有一组自定义颜色（customFg/customBg）：迁移为第一个自定义主题。

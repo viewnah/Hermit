@@ -772,9 +772,17 @@ input, select {
   pointer-events: none;
   transition: opacity 0.2s ease;
 }
-.reader-head { top: calc(var(--safe-top) + 16px); }
+/* 与 paginator 上下留白带对齐（--head-band/--foot-band 由 applyRendererSettings 同步）。
+   文字锚定在系统栏与正文之间：top 压在 safe-top 上、高度为带内剩余空间，
+   避免带高较小时（marginV 调小）文字钻进状态栏或压住正文；
+   未同步前回退到固定安全区偏移 */
+.reader-head {
+  top: var(--safe-top, 0px);
+  height: max(16px, calc(var(--head-band, 60px) - var(--safe-top, 0px)));
+}
 .reader-foot {
-  bottom: calc(var(--safe-bottom) + 16px);
+  bottom: var(--safe-bottom, 0px);
+  height: max(16px, calc(var(--foot-band, 40px) - var(--safe-bottom, 0px)));
   justify-content: flex-end;
 }
 .reader-head-title {
