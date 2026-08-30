@@ -570,7 +570,7 @@ export const SettingsSheet = ({
                   <path d="m15 18-6-6 6-6" />
                 </svg>
               </button>
-              <span className="sub-title">编辑主题</span>
+              <span className="sub-title">自定义主题</span>
             </div>
             {(() => {
               const cur = settings.customThemes.find(t => t.id === editThemeId)
