@@ -1104,6 +1104,41 @@ input, select {
   gap: 12px;
   flex-wrap: wrap;
 }
+/* 紧凑行：色块均分整行宽度（内置主题 5 个一行显示） */
+.swatch-row.tight .swatch {
+  flex: 1;
+  min-width: 0;
+}
+/* 固定宽度行：色块宽度与内置主题均分后一致（(100% - 4×gap) / 5），
+   自定义主题/壁纸行使用，避免行内均分导致色块过宽 */
+.swatch-row.fixed .swatch {
+  flex: 0 0 auto;
+  width: calc((100% - 48px) / 5);
+}
+
+/* 亮度 + 跟随系统同一行 */
+.brightness-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+}
+.brightness-row .slider-cell {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+.follow-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px 4px;
+  flex: none;
+}
+.follow-label {
+  font-size: 13px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
 
 .swatch {
   position: relative;

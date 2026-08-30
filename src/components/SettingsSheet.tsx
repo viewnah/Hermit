@@ -565,21 +565,30 @@ export const SettingsSheet = ({
 
         {tab === 'theme' && sub === null && (
           <>
-            {/* 跟随系统时滑块禁用（不可拖动），但保留显示当前亮度 */}
-            <SliderRow label="亮度" value={settings.brightness} min={BRIGHTNESS_MIN} max={BRIGHTNESS_MAX} step={0.01}
-              onChange={v => update({ brightness: v })}
-              // 显示数值（20-65），不带 %，按 1 递增
-              format={v => `${Math.round(v * 100)}`}
-              start={<IconBrightness />} disabled={settings.followSystemBrightness} />
-            <ToggleRow title="跟随系统" sub="亮度跟随系统亮度自动调节"
-              on={settings.followSystemBrightness} onChange={v => update({ followSystemBrightness: v })} />
+            {/* 亮度 + 跟随系统开关同一行（跟随系统时滑块禁用，但保留显示当前亮度） */}
+            <div className="brightness-row">
+              <SliderRow label="亮度" value={settings.brightness} min={BRIGHTNESS_MIN} max={BRIGHTNESS_MAX} step={0.01}
+                onChange={v => update({ brightness: v })}
+                // 显示数值（20-65），不带 %，按 1 递增
+                format={v => `${Math.round(v * 100)}`}
+                start={<IconBrightness />} disabled={settings.followSystemBrightness} />
+              <button
+                className="follow-toggle"
+                aria-label="跟随系统"
+                aria-pressed={settings.followSystemBrightness}
+                onClick={() => update({ followSystemBrightness: !settings.followSystemBrightness })}
+              >
+                <span className="follow-label">跟随系统</span>
+                <span className={`toggle ${settings.followSystemBrightness ? 'on' : ''}`} />
+              </button>
+            </div>
 
             <div className="setting-group">
               <div className="setting-label"><span>阅读主题</span></div>
               <div className="setting-label" style={{ marginTop: 4 }}>
                 <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>内置主题</span>
               </div>
-              <div className="swatch-row">
+              <div className="swatch-row tight">
                 {THEMES.map(t => (
                   <button
                     key={t.id}
@@ -594,7 +603,7 @@ export const SettingsSheet = ({
               <div className="setting-label" style={{ marginTop: 12 }}>
                 <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>自定义主题（长按可编辑）</span>
               </div>
-              <div className="swatch-row">
+              <div className="swatch-row fixed">
                 {settings.customThemes.map(t => (
                   <button
                     key={t.id}
@@ -622,8 +631,11 @@ export const SettingsSheet = ({
             </div>
 
             <div className="setting-group">
-              <div className="setting-label"><span>壁纸</span></div>
-              <div className="swatch-row">
+              <div className="setting-label">
+                <span>壁纸</span>
+                <span style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 400 }}>长按壁纸可删除</span>
+              </div>
+              <div className="swatch-row fixed">
                 <button
                   className={`swatch ${settings.wallpaperId == null ? 'selected' : ''}`}
                   style={{ background: 'var(--surface-2)', color: 'var(--ink-soft)' }}
@@ -656,18 +668,7 @@ export const SettingsSheet = ({
                   <span style={{ fontSize: 26 }}>＋</span>
                 </button>
               </div>
-              <div className="setting-label" style={{ marginTop: 12 }}>
-                <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>长按壁纸可删除</span>
-              </div>
             </div>
-
-            {settings.wallpaperId != null && (
-              <div className="setting-label">
-                <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>
-                  壁纸模式下文字颜色沿用主题（{theme.name}）
-                </span>
-              </div>
-            )}
           </>
         )}
 
