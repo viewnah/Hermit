@@ -600,8 +600,9 @@ export const SettingsSheet = ({
                   </button>
                 ))}
               </div>
-              <div className="setting-label" style={{ marginTop: 12 }}>
-                <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>自定义主题（长按可编辑）</span>
+              <div className="setting-label" style={{ marginTop: 12, justifyContent: 'flex-start', gap: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>自定义主题</span>
+                <span style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 400 }}>长按可编辑</span>
               </div>
               <div className="swatch-row fixed">
                 {settings.customThemes.map(t => (
@@ -631,9 +632,9 @@ export const SettingsSheet = ({
             </div>
 
             <div className="setting-group">
-              <div className="setting-label">
+              <div className="setting-label" style={{ justifyContent: 'flex-start', gap: 8 }}>
                 <span>壁纸</span>
-                <span style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 400 }}>长按壁纸可删除</span>
+                <span style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 400 }}>长按可删除</span>
               </div>
               <div className="swatch-row fixed">
                 <button
