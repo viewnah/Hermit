@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useSettings, THEMES, FONT_PRESETS, resolveTheme, BRIGHTNESS_MIN, BRIGHTNESS_MAX } from '../store/settings'
 import { Sheet, SliderRow, Segmented, ToggleRow, toast, confirmDialog } from './ui'
 import {
@@ -63,6 +63,162 @@ const IconBrightness = () => (
   </svg>
 )
 
+/* ---- 内嵌取色器（替代系统全局取色器：Android 上 input[type=color] 会弹出
+   系统颜色选择对话框，与应用风格割裂；改为应用内 HSV 面板 + 色相条 + 预设色板） ---- */
+const hexToHsv = (hex: string): { h: number; s: number; v: number } => {
+  const m = /^#?([\da-f]{6})$/i.exec(hex.trim())
+  if (!m) return { h: 0, s: 0, v: 1 }
+  const n = parseInt(m[1], 16)
+  const r = ((n >> 16) & 255) / 255
+  const g = ((n >> 8) & 255) / 255
+  const b = (n & 255) / 255
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const d = max - min
+  let h = 0
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d) % 6
+    else if (max === g) h = (b - r) / d + 2
+    else h = (r - g) / d + 4
+    h *= 60
+    if (h < 0) h += 360
+  }
+  return { h, s: max === 0 ? 0 : d / max, v: max }
+}
+
+const hsvToHex = (h: number, s: number, v: number): string => {
+  const c = v * s
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
+  const m = v - c
+  let r = 0, g = 0, b = 0
+  if (h < 60) [r, g, b] = [c, x, 0]
+  else if (h < 120) [r, g, b] = [x, c, 0]
+  else if (h < 180) [r, g, b] = [0, c, x]
+  else if (h < 240) [r, g, b] = [0, x, c]
+  else if (h < 300) [r, g, b] = [x, 0, c]
+  else [r, g, b] = [c, 0, x]
+  const to = (n: number) => Math.round((n + m) * 255).toString(16).padStart(2, '0')
+  return `#${to(r)}${to(g)}${to(b)}`
+}
+
+// 阅读主题常用色（背景/文字通用）
+const PRESET_COLORS = [
+  '#f6f1e5', '#ffffff', '#faf3dc', '#e8f0e4', '#e4edf2', '#f5e8e4',
+  '#e8e6e3', '#d9d4cc', '#c9c4bc', '#b8b2a8', '#8a857c', '#5c574e',
+  '#332e26', '#000000', '#4a4a4a', '#5b4636', '#2c3e50', '#2d4a3e',
+  '#7a3b2e', '#1a1a1a', '#2b2b2b', '#1e2430', '#1f2a24', '#2a2118',
+]
+
+const ColorPicker = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => {
+  const [hsv, setHsv] = useState(() => hexToHsv(value))
+  // 拖动期间 pointermove 连续触发，React 状态异步更新会导致闭包过期；
+  // 用 ref 保存最新值，且 onChange 副作用不放进 setState updater（保持纯函数）
+  const hsvRef = useRef(hsv)
+  const svRef = useRef<HTMLDivElement>(null)
+  const hueRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<'sv' | 'hue' | null>(null)
+  // hex 输入框文本：外部 value 变化（如切换主题）时同步
+  const [hexText, setHexText] = useState(value)
+  useEffect(() => { setHexText(value) }, [value])
+
+  const updateHsv = (next: { h: number; s: number; v: number }) => {
+    hsvRef.current = next
+    setHsv(next)
+    const hex = hsvToHex(next.h, next.s, next.v)
+    onChange(hex)
+    setHexText(hex)
+  }
+
+  const pickSv = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const el = svRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const s = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+    const v = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height))
+    updateHsv({ ...hsvRef.current, s, v })
+  }
+  const pickHue = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const el = hueRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const h = Math.max(0, Math.min(360, ((e.clientY - rect.top) / rect.height) * 360))
+    updateHsv({ ...hsvRef.current, h })
+  }
+  const startDrag = (kind: 'sv' | 'hue') => (e: ReactPointerEvent<HTMLDivElement>) => {
+    dragRef.current = kind
+    e.currentTarget.setPointerCapture(e.pointerId)
+    if (kind === 'sv') pickSv(e)
+    else pickHue(e)
+  }
+  const moveDrag = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (dragRef.current === 'sv') pickSv(e)
+    else if (dragRef.current === 'hue') pickHue(e)
+  }
+  const endDrag = () => { dragRef.current = null }
+
+  // hex 输入：合法 #rrggbb 才应用，否则仅更新文本
+  const onHexInput = (text: string) => {
+    setHexText(text)
+    const m = /^#?([\da-f]{6})$/i.exec(text.trim())
+    if (!m) return
+    const hex = `#${m[1].toLowerCase()}`
+    const next = hexToHsv(hex)
+    hsvRef.current = next
+    setHsv(next)
+    onChange(hex)
+  }
+
+  return (
+    <div className="color-picker">
+      <div className="cp-main">
+        <div
+          ref={svRef}
+          className="sv-panel"
+          style={{ background: `hsl(${hsv.h} 100% 50%)` }}
+          onPointerDown={startDrag('sv')}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+        >
+          <div className="sv-white" />
+          <div className="sv-black" />
+          <div className="sv-thumb" style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }} />
+        </div>
+        <div
+          ref={hueRef}
+          className="hue-bar"
+          onPointerDown={startDrag('hue')}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+        >
+          <div className="hue-thumb" style={{ top: `${(hsv.h / 360) * 100}%` }} />
+        </div>
+      </div>
+      <div className="preset-row">
+        {PRESET_COLORS.map(c => (
+          <button
+            key={c}
+            className={`preset-dot ${value.toLowerCase() === c ? 'selected' : ''}`}
+            style={{ background: c }}
+            onClick={() => { updateHsv(hexToHsv(c)); onChange(c) }}
+            aria-label={c}
+          />
+        ))}
+      </div>
+      <div className="cp-footer">
+        <div className="cp-preview" style={{ background: value }} />
+        <input
+          className="hex-input"
+          value={hexText}
+          spellCheck={false}
+          onChange={e => onHexInput(e.target.value)}
+        />
+      </div>
+    </div>
+  )
+}
+
 export const SettingsSheet = ({
   open, onClose, onAssetsChanged, currentBookId, initialTab = 'type',
 }: {
@@ -74,7 +230,111 @@ export const SettingsSheet = ({
 }) => {
   const { settings, update } = useSettings()
   const [tab, setTab] = useState('type')
-  const [sub, setSub] = useState<'font' | 'more' | null>(null)
+  const [sub, setSub] = useState<'font' | 'more' | 'custom-edit' | null>(null)
+  // 自定义主题取色器当前编辑项：'bg' 背景 / 'fg' 文字 / null 收起
+  const [editing, setEditing] = useState<'bg' | 'fg' | null>(null)
+  // 自定义主题编辑页当前编辑的主题 id（长按色块进入时定位）
+  const [editThemeId, setEditThemeId] = useState<string | null>(null)
+  // 长按自定义主题色块直接进入该主题的编辑页（500ms），默认选中背景取色器，
+  // 并自动切换当前主题到该主题（阅读页实时跟随编辑效果）；
+  // pointerup/leave/cancel 取消（避免与点击切换主题冲突）
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const startLongPress = (id: string) => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current)
+    longPressTimer.current = setTimeout(() => {
+      longPressTimer.current = null
+      setEditThemeId(id)
+      setEditing('bg')
+      setSub('custom-edit')
+      update({ themeId: id })
+    }, 500)
+  }
+  const cancelLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }
+  // 新建主题并直接进入编辑页（默认选中背景取色器，自动切换当前主题到新主题）
+  const createTheme = () => {
+    const t: CustomTheme = {
+      id: `custom-${Date.now()}`,
+      name: `自定义 ${settings.customThemes.length + 1}`,
+      fg: '#332e26',
+      bg: '#f6f1e5',
+    }
+    update({ customThemes: [...settings.customThemes, t], themeId: t.id })
+    setEditThemeId(t.id)
+    setEditing('bg')
+    setSub('custom-edit')
+  }
+  // 主题编辑区（列表页与长按直达页共用）：名称 + 背景/文字色块 + 取色器 + 删除
+  const renderThemeEditor = (cur: CustomTheme) => {
+    const patch = (p: Partial<CustomTheme>) =>
+      update({ customThemes: settings.customThemes.map(t => t.id === cur.id ? { ...t, ...p } : t) })
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="theme-name-row">
+          <span className="theme-name-label">主题名称</span>
+          <input
+            className="theme-name-input"
+            type="text"
+            value={cur.name}
+            maxLength={12}
+            placeholder="主题名称"
+            onChange={e => patch({ name: e.target.value })}
+          />
+        </div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <button
+            className={`color-chip ${editing === 'bg' ? 'selected' : ''}`}
+            style={{ background: cur.bg, color: cur.fg }}
+            onClick={() => setEditing(editing === 'bg' ? null : 'bg')}
+          >
+            背景
+          </button>
+          <button
+            className={`color-chip ${editing === 'fg' ? 'selected' : ''}`}
+            style={{ background: cur.fg, color: cur.bg }}
+            onClick={() => setEditing(editing === 'fg' ? null : 'fg')}
+          >
+            文字
+          </button>
+          <button
+            className="icon-btn"
+            style={{ marginLeft: 'auto' }}
+            aria-label="删除主题"
+            onClick={() => {
+              void confirmDialog(`删除主题「${cur.name}」？`, { confirmLabel: '删除' }).then(ok => {
+                if (!ok) return
+                const rest = settings.customThemes.filter(t => t.id !== cur.id)
+                update({
+                  customThemes: rest,
+                  themeId: settings.themeId === cur.id ? 'paper' : settings.themeId,
+                })
+                setEditThemeId(null)
+                setEditing(null)
+                setSub(null)
+              })
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18" />
+              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+            </svg>
+          </button>
+        </div>
+        {editing && (
+          <ColorPicker
+            value={editing === 'bg' ? cur.bg : cur.fg}
+            onChange={v => patch(editing === 'bg' ? { bg: v } : { fg: v })}
+          />
+        )}
+      </div>
+    )
+  }
   const [fonts, setFonts] = useState(getFontAssets())
   const [wallpapers, setWallpapers] = useState(getWallpaperAssets())
   const [wallUrls, setWallUrls] = useState<Map<number, string>>(new Map())
@@ -87,6 +347,8 @@ export const SettingsSheet = ({
     if (!open) return
     setTab(initialTab)
     setSub(null)
+    setEditThemeId(null)
+    setEditing(null)
     void loadAssets().then(() => {
       setFonts(getFontAssets())
       setWallpapers(getWallpaperAssets())
@@ -256,7 +518,30 @@ export const SettingsSheet = ({
           </div>
         )}
 
-        {tab === 'theme' && (
+        {tab === 'theme' && sub === 'custom-edit' && (
+          <div className="sub-panel">
+            <div className="sub-header">
+              <button className="sub-back" onClick={() => setSub(null)} aria-label="返回">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </button>
+              <span className="sub-title">编辑主题</span>
+            </div>
+            {(() => {
+              const cur = settings.customThemes.find(t => t.id === editThemeId)
+              if (!cur) return null
+              return (
+                <div className="setting-group">
+                  {renderThemeEditor(cur)}
+                </div>
+              )
+            })()}
+          </div>
+        )}
+
+        {tab === 'theme' && sub === null && (
           <>
             {/* 跟随系统时滑块禁用（不可拖动），但保留显示当前亮度 */}
             <SliderRow label="亮度" value={settings.brightness} min={BRIGHTNESS_MIN} max={BRIGHTNESS_MAX} step={0.01}
@@ -286,6 +571,11 @@ export const SettingsSheet = ({
                     className={`swatch ${settings.themeId === t.id ? 'selected' : ''}`}
                     style={{ background: t.bg, color: t.fg }}
                     onClick={() => update({ themeId: t.id })}
+                    // 长按进入该主题编辑页（500ms），点击仍为切换主题
+                    onPointerDown={() => startLongPress(t.id)}
+                    onPointerUp={cancelLongPress}
+                    onPointerLeave={cancelLongPress}
+                    onPointerCancel={cancelLongPress}
                   >
                     <span className="name">{t.name}</span>
                   </button>
@@ -293,70 +583,12 @@ export const SettingsSheet = ({
                 <button
                   className="swatch"
                   style={{ background: 'var(--surface-2)', color: 'var(--ink-soft)' }}
-                  onClick={() => {
-                    const t: CustomTheme = {
-                      id: `custom-${Date.now()}`,
-                      name: `自定义 ${settings.customThemes.length + 1}`,
-                      fg: '#332e26',
-                      bg: '#f6f1e5',
-                    }
-                    update({ customThemes: [...settings.customThemes, t], themeId: t.id })
-                  }}
+                  onClick={createTheme}
                 >
                   <span style={{ fontSize: 26 }}>＋</span>
                 </button>
               </div>
             </div>
-
-            {(() => {
-              const cur = settings.customThemes.find(t => t.id === settings.themeId)
-              if (!cur) return null
-              const patch = (p: Partial<CustomTheme>) =>
-                update({ customThemes: settings.customThemes.map(t => t.id === cur.id ? { ...t, ...p } : t) })
-              return (
-                <div className="setting-group">
-                  <div className="setting-label"><span>自定义主题</span></div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <input
-                      className="theme-name-input"
-                      type="text"
-                      value={cur.name}
-                      maxLength={12}
-                      placeholder="主题名称"
-                      onChange={e => patch({ name: e.target.value })}
-                    />
-                    <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                      <label className="color-input">
-                        <input type="color" value={cur.bg}
-                          onChange={e => patch({ bg: e.target.value })} />
-                        <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>背景</span>
-                      </label>
-                      <label className="color-input">
-                        <input type="color" value={cur.fg}
-                          onChange={e => patch({ fg: e.target.value })} />
-                        <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>文字</span>
-                      </label>
-                      <button
-                        className="btn ghost small"
-                        style={{ marginLeft: 'auto' }}
-                        onClick={() => {
-                          void confirmDialog(`删除主题「${cur.name}」？`, { confirmLabel: '删除' }).then(ok => {
-                            if (!ok) return
-                            const rest = settings.customThemes.filter(t => t.id !== cur.id)
-                            update({
-                              customThemes: rest,
-                              themeId: settings.themeId === cur.id ? 'paper' : settings.themeId,
-                            })
-                          })
-                        }}
-                      >
-                        删除
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )
-            })()}
 
             <div className="setting-group">
               <div className="setting-label"><span>壁纸</span></div>

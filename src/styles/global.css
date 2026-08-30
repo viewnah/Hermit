@@ -1188,33 +1188,153 @@ input, select {
 }
 .field input:focus { border-color: var(--accent); }
 
-.color-input {
+/* 自定义主题取色器：色块（点击展开内嵌取色器） */
+.color-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 40px;
+  border-radius: 10px;
+  border: 2px solid var(--hairline);
+  font-size: 13px;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.color-chip:active { transform: scale(0.94); }
+.color-chip.selected { border-color: var(--accent); }
+
+/* 内嵌取色器（扁平化：无外围边框/背景，直接融入面板） */
+.color-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cp-main {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+/* SV 面板：4:3 宽高比（宽度自适应，高度 = 宽度 × 3/4，限制最大尺寸避免过大） */
+.sv-panel {
+  position: relative;
+  flex: 1;
+  aspect-ratio: 4 / 3;
+  max-width: 280px;
+  border-radius: 8px;
+  overflow: hidden;
+  touch-action: none;
+  cursor: crosshair;
+}
+.sv-white {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, #fff, rgba(255, 255, 255, 0));
+}
+.sv-black {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, #000, rgba(0, 0, 0, 0));
+}
+.sv-thumb {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+/* 垂直色相条（右侧，高度跟随 SV 面板） */
+.hue-bar {
+  position: relative;
+  width: 20px;
+  border-radius: 8px;
+  background: linear-gradient(to bottom,
+    #f00 0%, #ff0 16.66%, #0f0 33.33%, #0ff 50%,
+    #00f 66.66%, #f0f 83.33%, #f00 100%);
+  touch-action: none;
+  cursor: pointer;
+}
+.hue-thumb {
+  position: absolute;
+  left: 50%;
+  width: 24px;
+  height: 10px;
+  border-radius: 4px;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+/* 预置颜色：12 列网格（24 色恰好 2 行），总宽度与 SV 面板一致（280px） */
+.preset-row {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 6px;
+  max-width: 280px;
+}
+.preset-dot {
+  aspect-ratio: 1;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  transition: transform 0.12s ease;
+}
+.preset-dot:active { transform: scale(0.9); }
+.preset-dot.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* 底部：当前颜色预览色块（矩形，与正方形预置色块区分）+ hex 输入框 */
+.cp-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cp-preview {
+  width: 56px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  flex: none;
+}
+.hex-input {
+  width: 110px;
+  padding: 6px 2px;
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 0;
+  background: none;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+.hex-input:focus { border-bottom-color: var(--accent); }
+
+/* 自定义主题名称：标签 + 下划线扁平输入框 */
+.theme-name-row {
   display: flex;
   align-items: center;
   gap: 12px;
 }
-.color-input input[type='color'] {
-  width: 46px;
-  height: 36px;
-  border: none;
-  border-radius: 8px;
-  background: none;
-  padding: 0;
+.theme-name-label {
+  font-size: 14px;
+  color: var(--ink-soft);
+  flex: none;
 }
-
-/* 自定义主题名称输入框 */
 .theme-name-input {
-  width: 100%;
-  padding: 10px 14px;
-  border-radius: 10px;
-  border: 1px solid var(--hairline);
-  background: var(--paper);
+  flex: 1;
+  min-width: 0;
+  padding: 6px 2px;
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 0;
+  background: none;
   font-size: 15px;
   color: var(--ink);
   outline: none;
   transition: border-color 0.2s ease;
 }
-.theme-name-input:focus { border-color: var(--accent); }
+.theme-name-input:focus { border-bottom-color: var(--accent); }
 
 /* toggle */
 .toggle {
