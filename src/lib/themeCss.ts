@@ -67,8 +67,8 @@ ${fontRule}
   -webkit-hyphens: manual;
   hyphens: manual;
   hanging-punctuation: allow-end last;
-  widows: 2;
-  orphans: 2;
+  widows: 1;
+  orphans: 1;
 }`)
   if (s.paraSpacing > 0) {
     lines.push(`p, li {
