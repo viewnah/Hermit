@@ -255,6 +255,28 @@ export const SettingsSheet = ({
       longPressTimer.current = null
     }
   }
+  // 长按壁纸删除（500ms）：pointerdown 启动定时器，pointerup/leave/cancel 取消
+  // （避免与点击切换壁纸冲突）
+  const wallLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const startWallLongPress = (id: number) => {
+    if (wallLongPressTimer.current) clearTimeout(wallLongPressTimer.current)
+    wallLongPressTimer.current = setTimeout(() => {
+      wallLongPressTimer.current = null
+      void confirmDialog('删除该壁纸？', { confirmLabel: '删除' }).then(ok => {
+        if (!ok) return
+        void deleteWallpaper(id).then(() => {
+          if (settings.wallpaperId === id) update({ wallpaperId: null })
+          void refreshAssets()
+        })
+      })
+    }, 500)
+  }
+  const cancelWallLongPress = () => {
+    if (wallLongPressTimer.current) {
+      clearTimeout(wallLongPressTimer.current)
+      wallLongPressTimer.current = null
+    }
+  }
   // 新建主题并直接进入编辑页（默认选中背景取色器，自动切换当前主题到新主题）
   const createTheme = () => {
     const t: CustomTheme = {
@@ -617,16 +639,11 @@ export const SettingsSheet = ({
                       backgroundSize: 'cover',
                     }}
                     onClick={() => update({ wallpaperId: w.id! })}
-                    onDoubleClick={() => {
-                      void confirmDialog(`删除壁纸「${w.name}」？`, { confirmLabel: '删除' }).then(ok => {
-                        if (ok) {
-                          void deleteWallpaper(w.id!).then(() => {
-                            if (settings.wallpaperId === w.id) update({ wallpaperId: null })
-                            void refreshAssets()
-                          })
-                        }
-                      })
-                    }}
+                    // 长按删除壁纸（500ms），点击仍为切换壁纸
+                    onPointerDown={() => startWallLongPress(w.id!)}
+                    onPointerUp={cancelWallLongPress}
+                    onPointerLeave={cancelWallLongPress}
+                    onPointerCancel={cancelWallLongPress}
                   />
                 ))}
                 <button
@@ -638,7 +655,7 @@ export const SettingsSheet = ({
                 </button>
               </div>
               <div className="setting-label" style={{ marginTop: 12 }}>
-                <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>双击壁纸可删除</span>
+                <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>长按壁纸可删除</span>
               </div>
             </div>
 
