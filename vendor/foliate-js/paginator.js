@@ -284,9 +284,17 @@ class View {
     scrolled({ margin, gap, columnWidth }) {
         const vertical = this.#vertical
         const doc = this.document
+        // 横排（vertical=false）时 documentElement 垂直 padding 原本为 0，
+        // 而 scrolled 模式下 #container 占满整个视口（grid-row: 1 / -1，无留白带），
+        // 正文会直接顶到视口顶部（含系统状态栏区域）。
+        // 滚动模式下 margin 单值 = 纯 marginV 留白（应用层设置），
+        // 上下 padding 用 margin*1.5；系统状态栏避让由容器留白带
+        // （--_margin-top/--_margin-bottom = safe-top/safe-bottom）提供
         setStylesImportant(doc.documentElement, {
             'box-sizing': 'border-box',
-            'padding': vertical ? `${margin*1.5}px ${gap}px` : `0 ${gap}px`,
+            'padding': vertical
+                ? `${margin*1.5}px ${gap}px`
+                : `${margin*1.5}px ${gap}px ${margin*1.5}px`,
             'column-width': 'auto',
             'height': 'auto',
             'width': 'auto',
@@ -441,6 +449,9 @@ export class Paginator extends HTMLElement {
     #touchState
     #touchScrolled
     #lastVisibleRange
+    // 滚动模式边界切章的时间戳防抖：切章后 anchor 定位会触发 scroll 事件，
+    // 若立即再次检测会误判边界造成死循环，500ms 内不重复切章
+    #lastBoundaryTurn = 0
     constructor() {
         super()
         this.#root.innerHTML = `<style>
@@ -505,8 +516,19 @@ export class Paginator extends HTMLElement {
         }
         :host([flow="scrolled"]) #container {
             grid-column: 1 / -1;
-            grid-row: 1 / -1;
+            /* 滚动容器位于上下留白带之间（与分页模式一致）：
+               留白带高度含 safe-top/safe-bottom 系统栏，内容滚动时
+               永远不进入状态栏区域（若占满视口 grid-row: 1 / -1，
+               滚动到中间时正文会顶到状态栏） */
+            grid-row: 2;
             overflow: auto;
+        }
+        /* 滚动模式：页眉/页脚容器（留白带）去掉，仅保留系统状态栏避让
+           （留白带高度 = safe-top/safe-bottom，由应用层设置）；
+           正文上下留白由 iframe padding 提供 */
+        :host([flow="scrolled"]) #header,
+        :host([flow="scrolled"]) #footer {
+            display: none;
         }
         #header {
             grid-column: 3 / 4;
@@ -557,6 +579,8 @@ export class Paginator extends HTMLElement {
             if (this.scrolled) {
                 if (this.#justAnchored) this.#justAnchored = false
                 else this.#afterScroll('scroll')
+                // 滚动到章节边界（顶部/底部）继续滚动 → 自动切换章节
+                this.#checkScrollBoundary()
             }
         }, 250))
 
@@ -1020,6 +1044,28 @@ export class Paginator extends HTMLElement {
             detail.size = 1 / (pages - 2)
         }
         this.dispatchEvent(new CustomEvent('relocate', { detail }))
+    }
+    // 滚动模式：滚动到章节边界继续滚动时自动切换章节（微信读书/readest 式体验）。
+    // 仅在用户滚动触发的 scroll 事件中检测；切章后 anchor 定位触发的 scroll
+    // 由 #justAnchored 清除 + #lastBoundaryTurn 时间戳防抖拦截，避免死循环
+    #checkScrollBoundary() {
+        if (this.#locked) return
+        const now = performance.now()
+        if (now - this.#lastBoundaryTurn < 500) return
+        const container = this.#container
+        const scrollHeight = container.scrollHeight
+        const clientHeight = container.clientHeight
+        // 内容不足一屏（不可滚动）时不检测，避免短章链死循环
+        if (scrollHeight <= clientHeight + 2) return
+        const atBottom = container.scrollTop + clientHeight >= scrollHeight - 2
+        const atTop = container.scrollTop <= 2
+        if (atBottom && !this.atEnd) {
+            this.#lastBoundaryTurn = now
+            void this.next()
+        } else if (atTop && !this.atStart) {
+            this.#lastBoundaryTurn = now
+            void this.prev()
+        }
     }
     async #display(promise) {
         const { index, src, anchor, onLoad, select } = await promise

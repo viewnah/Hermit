@@ -695,8 +695,10 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   const attachDocTapHandler = (doc: Document) => {
     // 分页模式下 iframe 内容垂直溢出，浏览器会接管垂直拖动并派发 pointercancel，
     // 导致下拉手势中断。禁止垂直平移（pan-x）让 pointer 流完整保留；
-    // 水平方向无溢出不受影响，滑动翻页照常
-    if (!scrolledRef.current) doc.documentElement.style.touchAction = 'pan-x'
+    // 水平方向无溢出不受影响，滑动翻页照常。
+    // 滚动模式必须恢复默认 touch-action（''）：pan-x 沿 DOM 祖先链生效，
+    // 浏览器不处理垂直平移，滚动容器（overflow: auto）将无法触摸滚动
+    doc.documentElement.style.touchAction = scrolledRef.current ? '' : 'pan-x'
     // foliate 的 paginator 会对 touchmove preventDefault 并转为滚动，
     // 合成的 click 事件因此不稳定（垂直微抖/按压稍久都会丢失），改用 pointer 事件自行判定 tap
     let downX = 0, downY = 0, downT = 0, downValid = false
@@ -981,7 +983,7 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   return (
     <div
       ref={rootRef}
-      className={`reader-root ${chromeVisible ? '' : 'chrome-hidden'} ${panel !== 'none' ? 'panel-open' : ''} ${hasMark ? 'marked' : ''}`}
+      className={`reader-root ${scrolled ? 'scrolled' : ''} ${chromeVisible ? '' : 'chrome-hidden'} ${panel !== 'none' ? 'panel-open' : ''} ${hasMark ? 'marked' : ''}`}
       style={{ ...chromeStyle, filter: filterBrightness !== 1 ? `brightness(${filterBrightness})` : undefined }}
     >
       {wallpaperUrl && (
@@ -1244,17 +1246,27 @@ function applyRendererSettings(
   if (!r) return
   lastSettingsApplyAt = Date.now()
   r.setAttribute('flow', settings.flow)
+  // 同步 iframe 的 touch-action：分页模式禁垂直平移（pan-x）保 pointer 流（下拉书签），
+  // 滚动模式恢复默认允许垂直滚动。flow 切换不重载 iframe，attachDocTapHandler 在
+  // load 时设置的 pan-x 会残留，导致滚动模式无法触摸滚动，必须在此同步
+  const rdoc = r.document
+  if (rdoc?.documentElement) {
+    rdoc.documentElement.style.touchAction = settings.flow === 'scrolled' ? '' : 'pan-x'
+  }
   r.setAttribute('gap', `${settings.marginH}%`)
   // 页眉/页脚位于正文与屏幕边缘之间：需要容纳 系统栏(inset) + 正文上下留白。
   // 上下按各自的安全区 inset 分别计算，不再取 max——否则较小的一侧（通常是底部
   // 手势条）被顶部状态栏高度撑大，形成"底部多出一截隐藏边距"。
   const halfV = window.innerHeight * settings.marginV / 100 * 0.5
   const marginFor = (inset: number) => Math.max(16, Math.round(inset + halfV))
-  const marginTopPx = marginFor(safePx('--safe-top'))
-  const marginBottomPx = marginFor(safePx('--safe-bottom'))
+  const scrolled = settings.flow === 'scrolled'
+  // 滚动模式：留白带仅容纳系统状态栏（页眉页脚容器已隐藏），
+  // 正文上下留白由 iframe padding 提供（margin 单值 = halfV）
+  const marginTopPx = scrolled ? Math.round(safePx('--safe-top')) : marginFor(safePx('--safe-top'))
+  const marginBottomPx = scrolled ? Math.round(safePx('--safe-bottom')) : marginFor(safePx('--safe-bottom'))
   // margin：单值基准，供滚动模式 padding（margin*1.5）与图片高度约束使用，
-  // 取两侧较大值保证任何模式下系统栏都被覆盖
-  r.setAttribute('margin', `${Math.max(marginTopPx, marginBottomPx)}px`)
+  // 分页模式取两侧较大值保证任何模式下系统栏都被覆盖
+  r.setAttribute('margin', `${scrolled ? Math.round(halfV) : Math.max(marginTopPx, marginBottomPx)}px`)
   // margin-top/bottom：分页模式下外层上下留白带各自精确分配
   r.setAttribute('margin-top', `${marginTopPx}px`)
   r.setAttribute('margin-bottom', `${marginBottomPx}px`)

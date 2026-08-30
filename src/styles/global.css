@@ -799,6 +799,12 @@ input, select {
 .reader-root.panel-open .reader-head {
   opacity: 1;
 }
+/* 滚动模式：内容连续流动，悬浮的页眉（章节名/书签丝带）与页脚（百分比）
+   会遮挡正文，全部隐藏；阅读进度由底部进度条提供 */
+.reader-root.scrolled .reader-head,
+.reader-root.scrolled .reader-foot {
+  display: none;
+}
 
 /* ---------- bottom sheet ---------- */
 .sheet-backdrop {

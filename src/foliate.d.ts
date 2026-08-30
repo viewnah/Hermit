@@ -34,6 +34,8 @@ declare module 'foliate-js/view.js' {
     page: number
     /** 是否已处于末尾（最后一页且无后续章节） */
     atEnd: boolean
+    /** 当前章节 iframe 的 document（未加载时为 null） */
+    document: Document | null
   }
 
   export interface FoliateSearchExcerpt {
