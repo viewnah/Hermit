@@ -601,8 +601,9 @@ export const SettingsSheet = ({
                     className={`swatch ${settings.themeId === t.id ? 'selected' : ''}`}
                     style={{ background: t.bg, color: t.fg }}
                     onClick={() => update({ themeId: t.id })}
-                    // 长按进入该主题编辑页（500ms），点击仍为切换主题
-                    onPointerDown={() => startLongPress(t.id)}
+                    // 长按进入该主题编辑页（500ms），点击仍为切换主题；
+                    // preventDefault 阻止 WebView 长按文本选择抢占手势
+                    onPointerDown={e => { e.preventDefault(); startLongPress(t.id) }}
                     onPointerUp={cancelLongPress}
                     onPointerLeave={cancelLongPress}
                     onPointerCancel={cancelLongPress}
@@ -639,8 +640,9 @@ export const SettingsSheet = ({
                       backgroundSize: 'cover',
                     }}
                     onClick={() => update({ wallpaperId: w.id! })}
-                    // 长按删除壁纸（500ms），点击仍为切换壁纸
-                    onPointerDown={() => startWallLongPress(w.id!)}
+                    // 长按删除壁纸（500ms），点击仍为切换壁纸；
+                    // preventDefault 阻止 WebView 长按文本选择抢占手势
+                    onPointerDown={e => { e.preventDefault(); startWallLongPress(w.id!) }}
                     onPointerUp={cancelWallLongPress}
                     onPointerLeave={cancelWallLongPress}
                     onPointerCancel={cancelWallLongPress}
