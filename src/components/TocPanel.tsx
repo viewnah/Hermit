@@ -152,23 +152,7 @@ export const TocPanel = ({
     const active = node.href === activeHref
     return (
       <div key={node.key} className="toc-node">
-        <div className={`toc-row ${active ? 'active' : ''}`} style={{ paddingLeft: 16 + node.depth * 22 }}>
-          <button
-            className="toc-row-main"
-            onClick={() => {
-              if (isParent && isCollapsed) {
-                setCollapsed(prev => { const next = new Set(prev); next.delete(node.key); return next })
-              } else if (node.href) {
-                onNavigate(node.href)
-              }
-              if (isParent && !isCollapsed && !node.href) {
-                setCollapsed(prev => { const next = new Set(prev); next.add(node.key); return next })
-              }
-            }}
-          >
-            <span className="toc-label">{node.label}</span>
-          </button>
-          <span className="toc-page">{pageOf(node.ordinal)}</span>
+        <div className={`toc-row ${active ? 'active' : ''}`} style={{ paddingLeft: 16 + node.depth * 15 }}>
           {isParent ? (
             <button
               className={`toc-caret ${isCollapsed ? 'collapsed' : ''}`}
@@ -185,6 +169,22 @@ export const TocPanel = ({
           ) : (
             <span className="toc-caret-spacer" />
           )}
+          <button
+            className="toc-row-main"
+            onClick={() => {
+              if (isParent && isCollapsed) {
+                setCollapsed(prev => { const next = new Set(prev); next.delete(node.key); return next })
+              } else if (node.href) {
+                onNavigate(node.href)
+              }
+              if (isParent && !isCollapsed && !node.href) {
+                setCollapsed(prev => { const next = new Set(prev); next.add(node.key); return next })
+              }
+            }}
+          >
+            <span className="toc-label">{node.label}</span>
+          </button>
+          <span className="toc-page">{pageOf(node.ordinal)}</span>
         </div>
         {isParent && !isCollapsed && !query && renderNodes(node.children)}
       </div>

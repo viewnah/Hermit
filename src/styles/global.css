@@ -1674,6 +1674,7 @@ input, select {
 .toc-page {
   flex: none;
   min-width: 34px;
+  margin-right: 16px;
   text-align: right;
   font-size: 12.5px;
   color: var(--ink-faint);
@@ -1683,7 +1684,7 @@ input, select {
   flex: none;
   width: 30px;
   height: 30px;
-  margin-right: 8px;
+  margin-left: -6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1692,7 +1693,7 @@ input, select {
   transition: transform 0.2s ease;
 }
 .toc-caret.collapsed { transform: rotate(-90deg); }
-.toc-caret-spacer { flex: none; width: 38px; }
+.toc-caret-spacer { flex: none; width: 24px; }
 
 /* 书签 */
 .toc-add-mark {
