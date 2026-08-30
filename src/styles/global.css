@@ -1135,7 +1135,7 @@ input, select {
 /* 字体选择：两列网格卡片 */
 .font-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
 .font-card {
@@ -1152,10 +1152,8 @@ input, select {
 }
 .font-card:active { transform: scale(0.97); background: var(--surface-3, var(--surface-2)); }
 .font-card.selected { outline: 2px solid var(--accent); }
-.font-card .name { font-size: 15px; }
-.font-card .sample {
-  font-size: 12px;
-  color: var(--ink-soft);
+.font-card .name {
+  font-size: 15px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

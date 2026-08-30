@@ -18,8 +18,6 @@ export interface FontPreset {
 }
 
 export const FONT_PRESETS: FontPreset[] = [
-  // 默认字体：不覆盖 font-family，使用 EPUB 书籍自带字体
-  { id: 'default', name: '默认字体', stack: '' },
   // 系统字体：使用当前平台系统默认字体（安卓 Roboto/思源黑体、iOS/macOS 苹方等）
   { id: 'system', name: '系统字体', stack: 'system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif' },
   { id: 'song', name: '宋体', stack: '"Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", serif' },
@@ -38,7 +36,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   indent: true,
   justify: true,
   bold: false,
-  fontPreset: 'default',
+  fontPreset: 'system',
   themeId: 'paper',
   customThemes: [],
   wallpaperId: null,
@@ -72,8 +70,8 @@ export const useSettings = create<SettingsState>((set, get) => ({
     // 旧版本滑块浮点误差可能存入 3.99997 这类小数（页边距滑块 step=1），加载时归一
     merged.marginH = Math.round(merged.marginH)
     merged.marginV = Math.round(merged.marginV)
-    // 旧版本"默认衬线"更名为"默认字体"（使用 EPUB 自带字体）
-    if (merged.fontPreset === 'system-serif') merged.fontPreset = 'default'
+    // 旧版本"默认衬线"/"默认字体"（使用 EPUB 自带字体）已移除：统一迁移为"系统字体"
+    if (merged.fontPreset === 'system-serif' || merged.fontPreset === 'default') merged.fontPreset = 'system'
     // 旧版本只有一组自定义颜色（customFg/customBg）：迁移为第一个自定义主题。
     // 仅当尚无任何自定义主题时迁移，避免旧字段残留导致重复添加
     if ((saved?.customFg != null || saved?.customBg != null) && !(merged.customThemes ?? []).length) {

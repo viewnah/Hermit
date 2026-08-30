@@ -132,7 +132,7 @@ export const SettingsSheet = ({
       const family = settings.fontPreset.slice('custom:'.length)
       return fonts.find(f => f.family === family)?.name ?? '自定义字体'
     }
-    return FONT_PRESETS.find(p => p.id === settings.fontPreset)?.name ?? '默认字体'
+    return FONT_PRESETS.find(p => p.id === settings.fontPreset)?.name ?? '系统字体'
   })()
 
   return (
@@ -195,7 +195,6 @@ export const SettingsSheet = ({
                     onClick={() => update({ fontPreset: p.id })}
                   >
                     <span className="name" style={{ fontFamily: p.stack }}>{p.name}</span>
-                    <span className="sample" style={{ fontFamily: p.stack }}>千山鸟飞绝，万径人踪灭</span>
                   </button>
                 ))}
               </div>
@@ -205,33 +204,29 @@ export const SettingsSheet = ({
                 <span>自定义字体</span>
                 <span className="value" style={{ fontSize: 12 }}>双击删除</span>
               </div>
-              {fonts.map(f => (
-                <div
+              <div className="font-grid" style={{ marginTop: 10 }}>
+                {fonts.map(f => (
+                <button
                   key={f.id}
-                  className="row-card"
-                  style={{
-                    outline: settings.fontPreset === `custom:${f.family}` ? '2px solid var(--accent)' : 'none',
+                  className={`font-card ${settings.fontPreset === `custom:${f.family}` ? 'selected' : ''}`}
+                  onClick={() => update({ fontPreset: `custom:${f.family}` })}
+                  onDoubleClick={() => {
+                    void confirmDialog(`删除字体「${f.name}」？`, { confirmLabel: '删除' }).then(ok => {
+                      if (ok) {
+                        void deleteFont(f.id!).then(() => {
+                          if (settings.fontPreset === `custom:${f.family}`)
+                            update({ fontPreset: 'system' })
+                          void refreshAssets()
+                        })
+                      }
+                    })
                   }}
                 >
-                  <button className="grow" style={{ textAlign: 'left' }}
-                    onClick={() => update({ fontPreset: `custom:${f.family}` })}
-                    onDoubleClick={() => {
-                      void confirmDialog(`删除字体「${f.name}」？`, { confirmLabel: '删除' }).then(ok => {
-                        if (ok) {
-                          void deleteFont(f.id!).then(() => {
-                            if (settings.fontPreset === `custom:${f.family}`)
-                              update({ fontPreset: 'default' })
-                            void refreshAssets()
-                          })
-                        }
-                      })
-                    }}>
-                    <div className="title">{f.name}</div>
-                    <div className="sub">{settings.fontPreset === `custom:${f.family}` ? '使用中' : '点击应用'}</div>
-                  </button>
-                </div>
+                  <span className="name" style={{ fontFamily: `"clip-font-${f.family}"` }}>{f.name}</span>
+                </button>
               ))}
-              <button className="btn" style={{ width: '100%' }}
+              </div>
+              <button className="btn" style={{ width: '100%', marginTop: 10 }}
                 onClick={() => fontInputRef.current?.click()}>
                 ＋ 导入字体（ttf / otf / woff2）
               </button>
