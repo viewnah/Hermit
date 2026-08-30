@@ -463,10 +463,6 @@ input, select {
   background-size: cover;
   background-position: center;
 }
-.reader-wallpaper-dim {
-  position: absolute;
-  inset: 0;
-}
 
 .reader-content { position: relative; flex: 1; min-height: 0; }
 

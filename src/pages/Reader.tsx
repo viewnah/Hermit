@@ -985,24 +985,10 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
       style={{ ...chromeStyle, filter: filterBrightness !== 1 ? `brightness(${filterBrightness})` : undefined }}
     >
       {wallpaperUrl && (
-        <>
-          <div
-            className="reader-wallpaper"
-            style={{
-              backgroundImage: `url(${wallpaperUrl})`,
-              filter: settings.wallpaperBlur ? `blur(${settings.wallpaperBlur}px)` : undefined,
-              transform: settings.wallpaperBlur ? 'scale(1.06)' : undefined,
-            }}
-          />
-          <div
-            className="reader-wallpaper-dim"
-            style={{
-              background: theme.dark
-                ? `rgba(10, 8, 6, ${settings.wallpaperDim})`
-                : `rgba(248, 244, 234, ${settings.wallpaperDim * 0.9})`,
-            }}
-          />
-        </>
+        <div
+          className="reader-wallpaper"
+          style={{ backgroundImage: `url(${wallpaperUrl})` }}
+        />
       )}
 
       <div

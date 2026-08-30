@@ -408,17 +408,11 @@ export const SettingsSheet = ({
             </div>
 
             {settings.wallpaperId != null && (
-              <>
-                <SliderRow label="遮罩浓度" value={settings.wallpaperDim} min={0} max={0.9} step={0.05}
-                  onChange={v => update({ wallpaperDim: v })} format={v => `${Math.round(v * 100)}%`} />
-                <SliderRow label="背景模糊" value={settings.wallpaperBlur} min={0} max={24} step={1}
-                  onChange={v => update({ wallpaperBlur: v })} format={v => `${v} px`} />
-                <div className="setting-label">
-                  <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>
-                    壁纸模式下文字颜色沿用主题（{theme.name}）
-                  </span>
-                </div>
-              </>
+              <div className="setting-label">
+                <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>
+                  壁纸模式下文字颜色沿用主题（{theme.name}）
+                </span>
+              </div>
             )}
           </>
         )}

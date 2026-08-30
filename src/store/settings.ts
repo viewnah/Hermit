@@ -42,8 +42,6 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   themeId: 'paper',
   customThemes: [],
   wallpaperId: null,
-  wallpaperDim: 0.35,
-  wallpaperBlur: 0,
   brightness: 0.6,
   followSystemBrightness: false,
   flow: 'paginated',
@@ -91,6 +89,9 @@ export const useSettings = create<SettingsState>((set, get) => ({
     // 清除旧字段，避免残留到下次保存
     delete (merged as Record<string, unknown>).customFg
     delete (merged as Record<string, unknown>).customBg
+    // 壁纸遮罩浓度/背景模糊选项已移除（固定为 0），清除旧字段避免残留到下次保存
+    delete (merged as Record<string, unknown>).wallpaperDim
+    delete (merged as Record<string, unknown>).wallpaperBlur
     // 旧版本 themeId 指向已删除的自定义主题：回退到默认主题
     if (merged.themeId.startsWith('custom-')
       && !(merged.customThemes ?? []).some(t => t.id === merged.themeId)) {

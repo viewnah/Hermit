@@ -69,8 +69,6 @@ export interface ReaderSettings {
   /** 用户自定义主题列表（themeId 指向其中某个 id 或内置主题 id） */
   customThemes: CustomTheme[]
   wallpaperId: number | null
-  wallpaperDim: number
-  wallpaperBlur: number
   /** 亮度调节，范围 0.2 ~ 0.65，默认 0.6（0.6 为基准亮度，即无滤镜效果；显示百分比以 0.65 为 100%） */
   brightness: number
   /** 跟随系统亮度：开启后亮度随系统深色/浅色模式自动调节，并禁用手动滑块 */
