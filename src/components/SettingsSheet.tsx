@@ -554,6 +554,9 @@ export const SettingsSheet = ({
 
             <div className="setting-group">
               <div className="setting-label"><span>阅读主题</span></div>
+              <div className="setting-label" style={{ marginTop: 4 }}>
+                <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>内置主题</span>
+              </div>
               <div className="swatch-row">
                 {THEMES.map(t => (
                   <button
@@ -565,6 +568,11 @@ export const SettingsSheet = ({
                     <span className="name">{t.name}</span>
                   </button>
                 ))}
+              </div>
+              <div className="setting-label" style={{ marginTop: 12 }}>
+                <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>自定义主题（长按可编辑）</span>
+              </div>
+              <div className="swatch-row">
                 {settings.customThemes.map(t => (
                   <button
                     key={t.id}
