@@ -277,6 +277,30 @@ export const SettingsSheet = ({
       wallLongPressTimer.current = null
     }
   }
+  // 长按字体删除（500ms）：与壁纸长按删除一致
+  const fontLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const startFontLongPress = (id: number, family: string) => {
+    if (fontLongPressTimer.current) clearTimeout(fontLongPressTimer.current)
+    fontLongPressTimer.current = setTimeout(() => {
+      fontLongPressTimer.current = null
+      const f = fonts.find(x => x.id === id)
+      if (!f) return
+      void confirmDialog(`删除字体「${f.name}」？`, { confirmLabel: '删除' }).then(ok => {
+        if (!ok) return
+        void deleteFont(id).then(() => {
+          if (settings.fontPreset === `custom:${family}`)
+            update({ fontPreset: 'system' })
+          void refreshAssets()
+        })
+      })
+    }, 500)
+  }
+  const cancelFontLongPress = () => {
+    if (fontLongPressTimer.current) {
+      clearTimeout(fontLongPressTimer.current)
+      fontLongPressTimer.current = null
+    }
+  }
   // 新建主题并直接进入编辑页（默认选中背景取色器，自动切换当前主题到新主题）
   const createTheme = () => {
     const t: CustomTheme = {
@@ -470,7 +494,7 @@ export const SettingsSheet = ({
               <span className="sub-title">字体</span>
             </div>
             <div className="setting-group">
-              <div className="setting-label"><span>阅读字体</span></div>
+              <div className="setting-label"><span>内置字体</span></div>
               <div className="font-grid">
                 {FONT_PRESETS.map(p => (
                   <button
@@ -484,9 +508,9 @@ export const SettingsSheet = ({
               </div>
             </div>
             <div className="setting-group">
-              <div className="setting-label">
+              <div className="setting-label" style={{ justifyContent: 'flex-start', gap: 8 }}>
                 <span>自定义字体</span>
-                <span className="value" style={{ fontSize: 12 }}>双击删除</span>
+                <span style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 400 }}>长按可删除</span>
               </div>
               <div className="font-grid" style={{ marginTop: 10 }}>
                 {fonts.map(f => (
@@ -494,26 +518,23 @@ export const SettingsSheet = ({
                   key={f.id}
                   className={`font-card ${settings.fontPreset === `custom:${f.family}` ? 'selected' : ''}`}
                   onClick={() => update({ fontPreset: `custom:${f.family}` })}
-                  onDoubleClick={() => {
-                    void confirmDialog(`删除字体「${f.name}」？`, { confirmLabel: '删除' }).then(ok => {
-                      if (ok) {
-                        void deleteFont(f.id!).then(() => {
-                          if (settings.fontPreset === `custom:${f.family}`)
-                            update({ fontPreset: 'system' })
-                          void refreshAssets()
-                        })
-                      }
-                    })
-                  }}
+                  // 长按删除字体（500ms），点击仍为切换字体；
+                  // preventDefault 阻止 WebView 长按文本选择抢占手势
+                  onPointerDown={e => { e.preventDefault(); startFontLongPress(f.id!, f.family) }}
+                  onPointerUp={cancelFontLongPress}
+                  onPointerLeave={cancelFontLongPress}
+                  onPointerCancel={cancelFontLongPress}
                 >
                   <span className="name" style={{ fontFamily: `"clip-font-${f.family}"` }}>{f.name}</span>
                 </button>
               ))}
+                <button
+                  className="font-card add-font"
+                  onClick={() => fontInputRef.current?.click()}
+                >
+                  <span style={{ fontSize: 26, lineHeight: 1 }}>＋</span>
+                </button>
               </div>
-              <button className="btn" style={{ width: '100%', marginTop: 10 }}
-                onClick={() => fontInputRef.current?.click()}>
-                ＋ 导入字体（ttf / otf / woff2）
-              </button>
             </div>
           </div>
         )}

@@ -1204,6 +1204,12 @@ input, select {
   text-overflow: ellipsis;
   max-width: 100%;
 }
+/* 导入字体加号卡片：与普通卡片同尺寸，内容居中 */
+.font-card.add-font {
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-soft);
+}
 
 .field {
   display: block;
