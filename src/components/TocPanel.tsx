@@ -54,7 +54,6 @@ export const TocPanel = ({
   const [tab, setTab] = useState<'toc' | 'marks'>('toc')
   // 切换方向：marks 在右（左滑进入），toc 在左（右滑进入），用于滑入动画方向
   const [slideDir, setSlideDir] = useState<'left' | 'right'>('left')
-  const [query, setQuery] = useState('')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const scrollRef = useRef<HTMLDivElement>(null)
   // 左右滑动切换目录/书签：记录起点，松手时判定水平位移
@@ -139,14 +138,7 @@ export const TocPanel = ({
   const pageOf = (ordinal: number) =>
     bookTotalPages ? Math.max(1, Math.round(((ordinal + 1) / total) * bookTotalPages)) : null
 
-  const matchQuery = (node: TreeNode): boolean => {
-    if (!query) return true
-    if (node.label.toLowerCase().includes(query.toLowerCase())) return true
-    return node.children.some(matchQuery)
-  }
-
   const renderNodes = (nodes: TreeNode[]) => nodes.map(node => {
-    if (!matchQuery(node)) return null
     const isParent = node.children.length > 0
     const isCollapsed = collapsed.has(node.key)
     const active = node.href === activeHref
@@ -186,7 +178,7 @@ export const TocPanel = ({
           </button>
           <span className="toc-page">{pageOf(node.ordinal)}</span>
         </div>
-        {isParent && !isCollapsed && !query && renderNodes(node.children)}
+        {isParent && !isCollapsed && renderNodes(node.children)}
       </div>
     )
   })
@@ -221,15 +213,6 @@ export const TocPanel = ({
         {tab === 'toc' ? (
         <>
           <div className="toc-book-title">{bookTitle}</div>
-          <div className="toc-search">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-            <input
-              type="text"
-              placeholder="搜索目录…"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-            />
-          </div>
           <div className="toc-scroll" ref={scrollRef}>
             {tree.length === 0 ? (
               <div className="toc-empty">此书没有目录</div>

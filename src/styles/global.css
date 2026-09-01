@@ -1566,27 +1566,6 @@ input, select {
   text-overflow: ellipsis;
 }
 
-.toc-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 18px 8px;
-  padding: 9px 13px;
-  border-radius: 10px;
-  background: var(--surface-2);
-  color: var(--ink-faint);
-}
-.toc-search input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  outline: none;
-  font-size: 14px;
-  color: var(--ink);
-}
-.toc-search input::placeholder { color: var(--ink-faint); }
-
 .toc-scroll {
   flex: 1;
   min-height: 0;
@@ -1603,12 +1582,20 @@ input, select {
 
 /* 目录行：当前章 accent 高亮 + 右对齐页码 + hairline 分隔 */
 .toc-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
   min-height: 46px;
-  border-bottom: 1px solid var(--hairline);
   transition: background 0.15s ease;
+}
+.toc-row::after {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 0;
+  border-bottom: 1px solid var(--hairline);
 }
 .toc-row:active { background: var(--accent-soft); }
 .toc-row.active .toc-label { color: var(--accent); font-weight: 600; }
