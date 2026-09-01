@@ -492,9 +492,9 @@ export const SettingsSheet = ({
                 </svg>
               </button>
               <span className="sub-title">字体</span>
+              <span style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 400 }}>长按可删除</span>
             </div>
             <div className="setting-group">
-              <div className="setting-label"><span>内置字体</span></div>
               <div className="font-grid">
                 {FONT_PRESETS.map(p => (
                   <button
@@ -505,29 +505,21 @@ export const SettingsSheet = ({
                     <span className="name" style={{ fontFamily: p.stack }}>{p.name}</span>
                   </button>
                 ))}
-              </div>
-            </div>
-            <div className="setting-group">
-              <div className="setting-label" style={{ justifyContent: 'flex-start', gap: 8 }}>
-                <span>自定义字体</span>
-                <span style={{ fontSize: 12, color: 'var(--ink-faint)', fontWeight: 400 }}>长按可删除</span>
-              </div>
-              <div className="font-grid" style={{ marginTop: 10 }}>
                 {fonts.map(f => (
-                <button
-                  key={f.id}
-                  className={`font-card ${settings.fontPreset === `custom:${f.family}` ? 'selected' : ''}`}
-                  onClick={() => update({ fontPreset: `custom:${f.family}` })}
-                  // 长按删除字体（500ms），点击仍为切换字体；
-                  // preventDefault 阻止 WebView 长按文本选择抢占手势
-                  onPointerDown={e => { e.preventDefault(); startFontLongPress(f.id!, f.family) }}
-                  onPointerUp={cancelFontLongPress}
-                  onPointerLeave={cancelFontLongPress}
-                  onPointerCancel={cancelFontLongPress}
-                >
-                  <span className="name" style={{ fontFamily: `"clip-font-${f.family}"` }}>{f.name}</span>
-                </button>
-              ))}
+                  <button
+                    key={f.id}
+                    className={`font-card ${settings.fontPreset === `custom:${f.family}` ? 'selected' : ''}`}
+                    onClick={() => update({ fontPreset: `custom:${f.family}` })}
+                    // 长按删除字体（500ms），点击仍为切换字体；
+                    // preventDefault 阻止 WebView 长按文本选择抢占手势
+                    onPointerDown={e => { e.preventDefault(); startFontLongPress(f.id!, f.family) }}
+                    onPointerUp={cancelFontLongPress}
+                    onPointerLeave={cancelFontLongPress}
+                    onPointerCancel={cancelFontLongPress}
+                  >
+                    <span className="name" style={{ fontFamily: `"clip-font-${f.family}"` }}>{f.name}</span>
+                  </button>
+                ))}
                 <button
                   className="font-card add-font"
                   onClick={() => fontInputRef.current?.click()}

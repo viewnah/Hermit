@@ -20,10 +20,6 @@ export interface FontPreset {
 export const FONT_PRESETS: FontPreset[] = [
   // 系统字体：使用当前平台系统默认字体（安卓 Roboto/思源黑体、iOS/macOS 苹方等）
   { id: 'system', name: '系统字体', stack: 'system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif' },
-  { id: 'song', name: '宋体', stack: '"Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", serif' },
-  { id: 'hei', name: '黑体', stack: '"PingFang SC", "Heiti SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif' },
-  { id: 'kai', name: '楷体', stack: '"Kaiti SC", "STKaiti", "KaiTi", "楷体", serif' },
-  { id: 'fangsong', name: '仿宋', stack: '"Fangsong SC", "STFangsong", "FangSong", "仿宋", serif' },
 ]
 
 export const DEFAULT_SETTINGS: ReaderSettings = {
@@ -72,6 +68,8 @@ export const useSettings = create<SettingsState>((set, get) => ({
     merged.marginV = Math.round(merged.marginV)
     // 旧版本"默认衬线"/"默认字体"（使用 EPUB 自带字体）已移除：统一迁移为"系统字体"
     if (merged.fontPreset === 'system-serif' || merged.fontPreset === 'default') merged.fontPreset = 'system'
+    // 旧版本内置预设（song/hei/kai/fangsong）已移除，统一迁移为"系统字体"
+    if (['song', 'hei', 'kai', 'fangsong'].includes(merged.fontPreset)) merged.fontPreset = 'system'
     // 旧版本只有一组自定义颜色（customFg/customBg）：迁移为第一个自定义主题。
     // 仅当尚无任何自定义主题时迁移，避免旧字段残留导致重复添加
     if ((saved?.customFg != null || saved?.customBg != null) && !(merged.customThemes ?? []).length) {
