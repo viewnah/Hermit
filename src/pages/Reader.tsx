@@ -3,7 +3,7 @@ import 'foliate-js/view.js'
 import type { FoliateRelocateDetail, FoliateSearchResult, FoliateView } from 'foliate-js/view.js'
 import { db } from '../db'
 import type { BookmarkRecord, BookRecord, ProgressRecord } from '../types'
-import { useSettings, resolveTheme, useSystemDark, effectiveBrightness, BRIGHTNESS_BASE, BRIGHTNESS_MIN, BRIGHTNESS_MAX } from '../store/settings'
+import { useSettings, resolveTheme, useSystemDark, effectiveBrightness, BRIGHTNESS_BASE } from '../store/settings'
 import { buildReaderCss, type LoadedFont } from '../lib/themeCss'
 import { getLoadedFonts, getWallpaperUrl, loadAssets } from '../lib/assetService'
 import { pullKosyncProgress, pushKosyncProgress } from '../lib/syncService'
@@ -14,9 +14,6 @@ import { SettingsSheet } from '../components/SettingsSheet'
 
 const SAVE_DEBOUNCE = 800
 const KOSYNC_PUSH_DEBOUNCE = 15000
-// 亮度手势（参考 readest）：左缘 10% 宽度区域，垂直主导且越过 18px 阈值激活
-const BRIGHTNESS_EDGE_RATIO = 0.1
-const BRIGHTNESS_ACTIVATION_PX = 18
 
 // Android WebView edge-to-edge 下 env() 不可用，原生会注入同名 CSS 变量；
 // 注入前读到的是 "env(...)" 字符串，parseFloat 为 NaN，回退 0
@@ -85,15 +82,6 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   const toggleBookmarkRef = useRef<() => void>(() => {})
   const panelRef = useRef(panel)
   const onBackRef = useRef(onBack)
-  // 亮度手势：监听器常驻 iframe 文档，运行时值经 ref 读取（避免闭包过期）
-  const settingsRef = useRef(settings)
-  const updateSettingsRef = useRef(update)
-  const systemDarkRef = useRef(systemDark)
-  // 亮度手势浮层：左缘滑动时显示当前亮度（百分比 + 垂直轨道 + 太阳图标）
-  const [briOverlay, setBriOverlay] = useState<{ visible: boolean; level: number }>({ visible: false, level: BRIGHTNESS_MAX })
-  const briHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const briRaf = useRef<number | null>(null)
-  const briPending = useRef<number | null>(null)
   // 菜单可见状态与打开时的页面位置：供 "点击退出菜单 / 翻页后自动退出" 判定
   const chromeVisibleRef = useRef(false)
   const chromeOpenCfi = useRef<string | null>(null)
@@ -104,9 +92,6 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   panelRef.current = panel
   onBackRef.current = onBack
   chromeVisibleRef.current = chromeVisible
-  settingsRef.current = settings
-  updateSettingsRef.current = update
-  systemDarkRef.current = systemDark
 
   const theme = resolveTheme(settings)
   const scrolled = settings.flow === 'scrolled'
@@ -195,7 +180,6 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
         attachPageInfo(v)
         v.addEventListener('load', ev => {
           attachDocTapHandler(ev.detail.doc)
-          attachBrightnessGesture(ev.detail.doc)
         })
 
         // foliate 的分页渲染依赖元素尺寸，必须先挂载再 init
@@ -564,134 +548,6 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
     })
   }
 
-  // ---- 亮度手势（参考 readest：左缘 10% 垂直滑动，上滑变亮/下滑变暗） ----
-  // 触摸走 touch 捕获阶段（先于 foliate 翻页，激活后吞掉翻页/滚动）；
-  // 桌面鼠标按住左缘拖动同样支持。拖动线性映射（与滑块一致，按 1 递增），
-  // rAF 节流持久化，浮层实时显示当前亮度数值
-  const attachBrightnessGesture = (doc: Document) => {
-    const win = doc.defaultView
-    const viewW = () => win?.innerWidth ?? window.innerWidth
-    const viewH = () => win?.innerHeight ?? window.innerHeight
-    const clamp01 = (v: number) => Math.max(0, Math.min(1, v))
-    // 亮度值 → 线性位置（0-1）
-    const valueToPos = (v: number) => clamp01((v - BRIGHTNESS_MIN) / (BRIGHTNESS_MAX - BRIGHTNESS_MIN))
-    // 线性位置（0-1）→ 亮度值
-    const posToValue = (p: number) => BRIGHTNESS_MIN + clamp01(p) * (BRIGHTNESS_MAX - BRIGHTNESS_MIN)
-    // 触摸通道状态
-    let tStart: { x: number; y: number } | null = null
-    let tArmed = false
-    let tActive = false
-    let tStartPos = 0
-    // 鼠标通道状态
-    let mStart: { x: number; y: number } | null = null
-    let mActive = false
-    let mStartPos = 0
-    const flushBri = () => {
-      briRaf.current = null
-      if (briPending.current != null) {
-        updateSettingsRef.current({ brightness: briPending.current })
-        briPending.current = null
-      }
-    }
-    const scheduleBri = (v: number) => {
-      briPending.current = v
-      if (briRaf.current == null) briRaf.current = requestAnimationFrame(flushBri)
-    }
-    const showOverlay = (level: number) => {
-      setBriOverlay({ visible: true, level })
-      if (briHideTimer.current) clearTimeout(briHideTimer.current)
-    }
-    const hideOverlay = () => {
-      if (briHideTimer.current) clearTimeout(briHideTimer.current)
-      briHideTimer.current = setTimeout(() => setBriOverlay(o => ({ ...o, visible: false })), 600)
-    }
-    const endGesture = () => {
-      if (briRaf.current != null) { cancelAnimationFrame(briRaf.current); briRaf.current = null }
-      if (briPending.current != null) {
-        updateSettingsRef.current({ brightness: briPending.current })
-        briPending.current = null
-      }
-      tActive = false
-      tArmed = false
-      tStart = null
-      mActive = false
-      mStart = null
-      hideOverlay()
-    }
-    // 激活时若开启"跟随系统亮度"→ 自动关闭，转手动调节
-    const ensureManual = () => {
-      if (settingsRef.current.followSystemBrightness) {
-        updateSettingsRef.current({ followSystemBrightness: false })
-      }
-    }
-    const applyDelta = (startPos: number, dy: number) => {
-      // startPos 为 0-1 线性位置，整屏高度拖完 = 全范围
-      const pos = clamp01(startPos - dy / viewH())
-      const value = posToValue(pos)
-      scheduleBri(value)
-      showOverlay(value)
-    }
-    doc.addEventListener('touchstart', e => {
-      const t = e.touches[0]
-      if (!t) return
-      tStart = { x: t.clientX, y: t.clientY }
-      tArmed = t.clientX <= viewW() * BRIGHTNESS_EDGE_RATIO
-      tActive = false
-      if (tArmed) {
-        tStartPos = valueToPos(effectiveBrightness(settingsRef.current, systemDarkRef.current))
-      }
-    }, { capture: true, passive: true })
-    doc.addEventListener('touchmove', e => {
-      if (!tArmed || !tStart) return
-      const t = e.touches[0]
-      if (!t) return
-      const dx = t.clientX - tStart.x
-      const dy = t.clientY - tStart.y
-      if (!tActive) {
-        // 滚动模式：armed 后第一个 move 就保留左缘区域（防滚动跳动，同 readest）
-        if (scrolledRef.current) {
-          e.preventDefault()
-          e.stopImmediatePropagation()
-        }
-        // 水平主导 → 放弃亮度手势，交给翻页
-        if (Math.abs(dx) >= BRIGHTNESS_ACTIVATION_PX && Math.abs(dx) > Math.abs(dy)) {
-          tArmed = false
-          return
-        }
-        // 垂直主导且越过阈值才激活（防误触）
-        if (Math.abs(dy) < BRIGHTNESS_ACTIVATION_PX || Math.abs(dy) <= Math.abs(dx)) return
-        tActive = true
-        ensureManual()
-      }
-      // 激活后吞掉 touchmove，禁止 foliate 翻页/滚动
-      e.preventDefault()
-      e.stopImmediatePropagation()
-      applyDelta(tStartPos, dy)
-    }, { capture: true, passive: false })
-    doc.addEventListener('touchend', endGesture, { capture: true, passive: true })
-    doc.addEventListener('touchcancel', endGesture, { capture: true, passive: true })
-    // 鼠标通道：桌面按住左缘拖动（与触摸共用 rAF/浮层/结束逻辑）
-    doc.addEventListener('pointerdown', e => {
-      if (e.pointerType !== 'mouse' || e.button !== 0) return
-      if (e.clientX > viewW() * BRIGHTNESS_EDGE_RATIO) return
-      mStart = { x: e.clientX, y: e.clientY }
-      mActive = false
-      mStartPos = valueToPos(effectiveBrightness(settingsRef.current, systemDarkRef.current))
-    })
-    doc.addEventListener('pointermove', e => {
-      if (!mStart || e.pointerType !== 'mouse') return
-      const dy = e.clientY - mStart.y
-      if (!mActive) {
-        if (Math.abs(dy) < BRIGHTNESS_ACTIVATION_PX) return
-        mActive = true
-        ensureManual()
-      }
-      applyDelta(mStartPos, dy)
-    })
-    doc.addEventListener('pointerup', endGesture)
-    doc.addEventListener('pointercancel', endGesture)
-  }
-
   const attachDocTapHandler = (doc: Document) => {
     // 分页模式下 iframe 内容垂直溢出，浏览器会接管垂直拖动并派发 pointercancel，
     // 导致下拉手势中断。禁止垂直平移（pan-x）让 pointer 流完整保留；
@@ -743,12 +599,10 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
       const winY = rect && win?.innerHeight
         ? rect.top + (e.clientY / win.innerHeight) * rect.height
         : e.clientY
-      // 仅避开顶部系统手势区，正文其余区域均可下拉；
-      // 左缘 10% 让位给亮度手势（同 readest）
+      // 仅避开顶部系统手势区，正文其余区域均可下拉
       const top = safePx('--safe-top') + 30
-      const inBriEdge = e.clientX <= window.innerWidth * BRIGHTNESS_EDGE_RATIO
       pullActive = e.pointerType === 'touch' && !scrolledRef.current
-        && !inBriEdge && downValid && winY > top
+        && downValid && winY > top
       // 越过 20px 阈值后才持有 pullArmed，保证长按选词不被当成下拉
       pullArmed = false
     })
@@ -951,8 +805,6 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
     if (searchTimer.current) clearTimeout(searchTimer.current)
     if (progressDragTimer.current) clearTimeout(progressDragTimer.current)
     if (chapterNavTimer.current) clearTimeout(chapterNavTimer.current)
-    if (briHideTimer.current) clearTimeout(briHideTimer.current)
-    if (briRaf.current != null) cancelAnimationFrame(briRaf.current)
   }, [])
 
   // ---- render ----
@@ -1009,24 +861,6 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
         <div className="loading-screen" style={{ background: theme.bg, color: theme.fg }}>
           <div className="seal-spin" />
           <div>展 卷</div>
-        </div>
-      )}
-
-      {/* 亮度手势浮层（参考 readest：左缘胶囊 + 数值 + 垂直轨道 + 太阳图标） */}
-      {briOverlay.visible && (
-        <div className="brightness-overlay" aria-hidden>
-          <span className="bri-value">{Math.round(briOverlay.level * 100)}</span>
-          <div className="bri-track">
-            <div className="bri-fill" style={{ height: `${((briOverlay.level - BRIGHTNESS_MIN) / (BRIGHTNESS_MAX - BRIGHTNESS_MIN)) * 100}%` }} />
-          </div>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="4" />
-            <path d="M12 2v2" /><path d="M12 20v2" />
-            <path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" />
-            <path d="M2 12h2" /><path d="M20 12h2" />
-            <path d="m6.34 17.66-1.41 1.41" /><path d="m19.07 4.93-1.41 1.41" />
-          </svg>
         </div>
       )}
 
@@ -1248,8 +1082,9 @@ function applyRendererSettings(
   r.setAttribute('flow', settings.flow)
   // 同步 iframe 的 touch-action：分页模式禁垂直平移（pan-x）保 pointer 流（下拉书签），
   // 滚动模式恢复默认允许垂直滚动。flow 切换不重载 iframe，attachDocTapHandler 在
-  // load 时设置的 pan-x 会残留，导致滚动模式无法触摸滚动，必须在此同步
-  const rdoc = r.document
+  // load 时设置的 pan-x 会残留，导致滚动模式无法触摸滚动，必须在此同步。
+  // Paginator 未暴露 document 属性，须经 getContents() 取当前章节的 iframe document
+  const rdoc = r.getContents?.()[0]?.doc ?? null
   if (rdoc?.documentElement) {
     rdoc.documentElement.style.touchAction = settings.flow === 'scrolled' ? '' : 'pan-x'
   }

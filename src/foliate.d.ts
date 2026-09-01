@@ -34,8 +34,13 @@ declare module 'foliate-js/view.js' {
     page: number
     /** 是否已处于末尾（最后一页且无后续章节） */
     atEnd: boolean
-    /** 当前章节 iframe 的 document（未加载时为 null） */
-    document: Document | null
+    /** 是否已处于开头（首页且无前置章节） */
+    atStart: boolean
+    /**
+     * 已加载章节的 iframe document（Paginator 未暴露 `document` 属性，
+     * 需经此获取；无已加载视图时返回空数组）
+     */
+    getContents(): { index: number; doc: Document | null }[]
   }
 
   export interface FoliateSearchExcerpt {
