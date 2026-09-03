@@ -4,6 +4,16 @@ import { pushBackHandler } from '../lib/backButton'
 import { deleteBook, importBookFile } from '../lib/bookService'
 import { toast, confirmDialog } from '../components/ui'
 import { SyncPanel } from '../components/SyncPanel'
+import { SectionCard } from '../components/SectionCard'
+import { LibraryBrowse } from './LibraryBrowse'
+import {
+  addLibrarySource, defaultLibraryWebDavConfig, deriveLibraryName,
+  isWebDavLibrary, listLibrarySources, removeLibrarySource, toggleLibraryEnabled,
+  updateLibrarySource,
+} from '../lib/librarySources'
+import { testLibraryConnection } from '../lib/libraryBrowse'
+import { WebDavError } from '../lib/webdav'
+import type { LibrarySource, LibraryWebDavConfig } from '../types'
 
 interface BookRow {
   id: number
@@ -95,6 +105,11 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
   const coverUrls = useCoverUrls(rows, covers)
   const menuRef = useRef(menu)
   menuRef.current = menu
+
+  // 书库浏览子页面
+  const [browseSource, setBrowseSource] = useState<LibrarySource | null>(null)
+  // 书库卡片展开态（按 source.id 跟踪）
+  const [libExpandedId, setLibExpandedId] = useState<string | null>(null)
 
   // Android 返回键：书架上有弹出菜单时先关闭，否则交还原生（退到后台）
   useEffect(() => pushBackHandler(() => {
@@ -225,9 +240,11 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
             ) : (
               <div className="home-title">{TAB_TITLES[tab]}</div>
             )}
-            <button className="icon-btn" onClick={() => setMenu(menu === 'more' ? null : 'more')} aria-label="菜单">
-              <IconMenu />
-            </button>
+            {tab === 'shelf' && (
+              <button className="icon-btn" onClick={() => setMenu(menu === 'more' ? null : 'more')} aria-label="菜单">
+                <IconMenu />
+              </button>
+            )}
           </header>
 
           {tab === 'shelf' && (
@@ -303,10 +320,13 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
               <div className="mine-slogan">一页一世界</div>
               <div className="mine-version">v0.1.2</div>
             </div>
-            <div className="mine-section">
-              <div className="mine-section-title">数据同步</div>
-              <SyncPanel />
-            </div>
+            <LibrarySourcesSection
+              browseSource={browseSource}
+              onBrowse={setBrowseSource}
+              libExpandedId={libExpandedId}
+              setLibExpandedId={setLibExpandedId}
+            />
+            <SyncPanel />
             <div className="mine-section">
               <div className="mine-section-title">关于</div>
               <div className="mine-about">
@@ -316,6 +336,13 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
           </div>
         )}
       </div>
+
+      {browseSource && (
+        <LibraryBrowse
+          source={browseSource}
+          onBack={() => setBrowseSource(null)}
+        />
+      )}
 
       {tab === 'shelf' && (
         <button
@@ -382,5 +409,218 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
         }}
       />
     </div>
+  )
+}
+
+/* ---------------- 在线书库 section ---------------- */
+
+const IconLibrary = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 19V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v13" />
+    <path d="M3 19h20" />
+    <path d="M14 10h4a2 2 0 0 1 2 2v7" />
+    <path d="M14 10v9h6" />
+  </svg>
+)
+const IconChevronRight = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="9 6 15 12 9 18" />
+  </svg>
+)
+
+const LibrarySourcesSection = ({
+  browseSource, onBrowse, libExpandedId, setLibExpandedId,
+}: {
+  browseSource: LibrarySource | null
+  onBrowse: (s: LibrarySource | null) => void
+  libExpandedId: string | null
+  setLibExpandedId: (id: string | null) => void
+}) => {
+  const [sources, setSources] = useState<LibrarySource[]>([])
+
+  const refresh = async () => setSources(await listLibrarySources())
+  useEffect(() => { void refresh() }, [])
+
+  const handleAdd = async () => {
+    const cfg = defaultLibraryWebDavConfig()
+    const name = deriveLibraryName('webdav', cfg)
+    await addLibrarySource({ kind: 'webdav', name, config: cfg, enabled: false })
+    const list = await listLibrarySources()
+    setSources(list)
+    setLibExpandedId(list[list.length - 1].id)
+  }
+
+  const handleRemove = async (s: LibrarySource) => {
+    const ok = await confirmDialog(`移除「${s.name}」？`, {
+      body: '已下载的书籍不会删除', confirmLabel: '移除',
+    })
+    if (!ok) return
+    await removeLibrarySource(s.id)
+    if (libExpandedId === s.id) setLibExpandedId(null)
+    await refresh()
+    toast('已移除')
+  }
+
+  const handleEnter = async (s: LibrarySource) => {
+    if (!s.enabled) {
+      // 停用态：未配置/未启用时点击进入配置（不直接进入浏览）
+      if (!s.config.url) {
+        setLibExpandedId(s.id)
+        return
+      }
+      // 已配置但未启用：提示用户启用
+      toast('请先启用此书库')
+      return
+    }
+    onBrowse(s)
+  }
+
+  const renderCard = (s: LibrarySource) => {
+    const enabled = s.enabled
+    const subtitle = !s.config.url
+      ? <span><span className="dot off" />未配置</span>
+      : enabled
+        ? <span><span className="dot" />已连接 · {stripScheme(s.config.url)}</span>
+        : <span><span className="dot off" />已停用</span>
+
+    return (
+      <SectionCard
+        key={s.id}
+        icon={<IconLibrary />}
+        title={s.name}
+        subtitle={subtitle}
+        primaryAction={
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 13 }}>进入</span>
+            <IconChevronRight />
+          </span>
+        }
+        onPrimaryClick={() => void handleEnter(s)}
+        onCollapsedClick={() => void handleEnter(s)}
+        expanded={libExpandedId === s.id}
+        onExpand={() => setLibExpandedId(s.id)}
+        onCollapse={() => setLibExpandedId(null)}
+      >
+        <LibraryEditor
+          source={s}
+          onSaved={refresh}
+          onClose={() => setLibExpandedId(null)}
+          onRemove={() => handleRemove(s)}
+          onEnter={() => { setLibExpandedId(null); onBrowse(s) }}
+        />
+      </SectionCard>
+    )
+  }
+
+  return (
+    <div className="section-group">
+      <div className="section-group-head">
+        <span className="section-group-title">在线书库</span>
+        <span className="section-group-desc">点击进入 · 长按编辑</span>
+      </div>
+
+      {sources.length === 0 ? (
+        <button className="section-empty" onClick={handleAdd}>
+          <span className="plus">＋</span>
+          <span className="label">添加书库</span>
+          <span className="hint">WebDAV · OPDS（即将）</span>
+        </button>
+      ) : sources.map(renderCard)}
+
+      {sources.length > 0 && (
+        <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+          <button className="btn ghost small" style={{ flex: 1 }} onClick={handleAdd}>
+            ＋ 添加书库
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const stripScheme = (url: string): string =>
+  url.replace(/^https?:\/\//, '').replace(/\/+$/, '') || '未填写'
+
+const LibraryEditor = ({
+  source, onSaved, onClose, onRemove, onEnter,
+}: {
+  source: LibrarySource
+  onSaved: () => Promise<void> | void
+  onClose: () => void
+  onRemove: () => void
+  onEnter: () => void
+}) => {
+  const [cfg, setCfg] = useState<LibraryWebDavConfig>(
+    isWebDavLibrary(source) ? source.config : defaultLibraryWebDavConfig(),
+  )
+  const [busy, setBusy] = useState(false)
+
+  const handleTest = async () => {
+    setBusy(true)
+    try {
+      const msg = await testLibraryConnection({ ...source, config: cfg })
+      toast(msg)
+    } catch (e) {
+      toast(e instanceof WebDavError ? e.message : '连接失败')
+    } finally { setBusy(false) }
+  }
+
+  const handleSave = async () => {
+    setBusy(true)
+    try {
+      const name = cfg.url ? deriveLibraryName('webdav', cfg) : source.name
+      await updateLibrarySource(source.id, { config: cfg, name, enabled: cfg.url.length > 0 })
+      await onSaved()
+      onClose()
+      toast('已保存')
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <>
+      <label className="field">
+        <span className="field-label">名称</span>
+        <input type="text" value={cfg.url ? stripScheme(cfg.url) : ''} readOnly
+          placeholder="保存后自动从 URL 生成" />
+      </label>
+      <label className="field">
+        <span className="field-label">服务器地址</span>
+        <input type="url" placeholder="https://dav.example.com/dav"
+          value={cfg.url} onChange={e => setCfg({ ...cfg, url: e.target.value.trim() })} />
+      </label>
+      <label className="field">
+        <span className="field-label">用户名</span>
+        <input type="text" autoComplete="off"
+          value={cfg.username} onChange={e => setCfg({ ...cfg, username: e.target.value })} />
+      </label>
+      <label className="field">
+        <span className="field-label">密码</span>
+        <input type="password" autoComplete="new-password"
+          value={cfg.password} onChange={e => setCfg({ ...cfg, password: e.target.value })} />
+      </label>
+      <label className="field">
+        <span className="field-label">根目录</span>
+        <input type="text" placeholder="/clip-reader"
+          value={cfg.path} onChange={e => setCfg({ ...cfg, path: e.target.value.trim() || '/clip-reader' })} />
+      </label>
+      <label className="row-card" style={{ width: '100%', textAlign: 'left' }}
+        onClick={() => setCfg({ ...cfg, browseOnly: !cfg.browseOnly })}>
+        <div className="grow">
+          <div className="title">只浏览，不下载到本地</div>
+          <div className="sub">关闭后点击 EPUB 会下载并导入书架</div>
+        </div>
+        <span className={`toggle ${cfg.browseOnly ? 'on' : ''}`} />
+      </label>
+
+      <div className="section-card-footer">
+        <button className="btn" style={{ flex: 'none', padding: '8px 14px', color: 'var(--accent)' }}
+          onClick={onRemove}>删除</button>
+        <button className="btn" disabled={busy} onClick={handleTest}>测试连接</button>
+        <button className="btn" disabled={busy} onClick={onEnter}>进入浏览</button>
+        <button className="btn primary" disabled={busy} onClick={handleSave}>保存</button>
+      </div>
+    </>
   )
 }

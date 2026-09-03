@@ -106,10 +106,66 @@ export interface WebDavConfig {
   syncBooks: boolean
 }
 
+/** 书库专用的 WebDAV 配置：与同步配置字段独立、语义不同（browseOnly 替代 syncBooks） */
+export interface LibraryWebDavConfig {
+  url: string
+  username: string
+  password: string
+  path: string
+  /** 只浏览不下载到本地 */
+  browseOnly: boolean
+}
+
 export interface KosyncConfig {
   url: string
   username: string
   userkey: string
   device: string
   autoSync: boolean
+}
+
+/** OPDS 书库配置（占位：本期不实现） */
+export interface OpdsConfig {
+  url: string
+  username?: string
+  password?: string
+}
+
+/** 书库类型 */
+export type LibraryKind = 'webdav' | 'opds'
+
+/** 同步类型 */
+export type SyncKind = 'webdav' | 'kosync'
+
+/** 通用书库/同步源基础字段 */
+export interface SourceBase<K extends string, C> {
+  id: string
+  kind: K
+  /** 显示名（用户可改） */
+  name: string
+  config: C
+  /** 是否启用 */
+  enabled: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+/** 书库源：本期支持 WebDAV，OPDS 预留 */
+export type LibrarySource =
+  | SourceBase<'webdav', LibraryWebDavConfig>
+  | SourceBase<'opds', OpdsConfig>
+
+/** 同步源：WebDAV 同步 + KOReader */
+export type SyncSource =
+  | SourceBase<'webdav', WebDavConfig>
+  | SourceBase<'kosync', KosyncConfig>
+
+/** 远端书库浏览的条目（目录或文件） */
+export interface LibraryEntry {
+  /** 文件名或目录名（含 .epub 后缀） */
+  name: string
+  isDir: boolean
+  size?: number
+  /** WebDAV href */
+  href: string
 }

@@ -1,22 +1,29 @@
-import type { WebDavConfig } from '../types'
-
 export class WebDavError extends Error {
   constructor(message: string, public status?: number) {
     super(message)
   }
 }
 
-const buildBase = (config: WebDavConfig): string => {
+/** WebDAV 认证 + 路径子集：与 WebDavConfig 兼容，但去掉 syncBooks 业务字段，
+ * 让书库（LibraryWebDavConfig）和同步（WebDavConfig）共用底层 */
+export interface WebDavAuthConfig {
+  url: string
+  username: string
+  password: string
+  path: string
+}
+
+const buildBase = (config: WebDavAuthConfig): string => {
   const url = config.url.replace(/\/+$/, '')
   const path = config.path.replace(/^\/+|\/+$/g, '')
   return path ? `${url}/${path}` : url
 }
 
-const authHeader = (config: WebDavConfig): string =>
+const authHeader = (config: WebDavAuthConfig): string =>
   'Basic ' + btoa(config.username + ':' + config.password)
 
 const request = async (
-  config: WebDavConfig,
+  config: WebDavAuthConfig,
   method: string,
   path: string,
   body?: BodyInit,
@@ -31,7 +38,7 @@ const request = async (
   return res
 }
 
-export const davTest = async (config: WebDavConfig): Promise<void> => {
+export const davTest = async (config: WebDavAuthConfig): Promise<void> => {
   const res = await request(config, 'PROPFIND', '/', undefined, { Depth: '0' })
   if (!res.ok) {
     if (res.status === 401) throw new WebDavError('认证失败，请检查账号密码', 401)
@@ -40,14 +47,14 @@ export const davTest = async (config: WebDavConfig): Promise<void> => {
   }
 }
 
-export const davMkdir = async (config: WebDavConfig): Promise<void> => {
+export const davMkdir = async (config: WebDavAuthConfig): Promise<void> => {
   const res = await request(config, 'MKCOL', '/')
   if (!res.ok && res.status !== 405)
     throw new WebDavError(`创建目录失败 (${res.status})`, res.status)
 }
 
 export const davPut = async (
-  config: WebDavConfig,
+  config: WebDavAuthConfig,
   path: string,
   data: BodyInit,
   contentType = 'application/octet-stream',
@@ -57,7 +64,7 @@ export const davPut = async (
 }
 
 export const davGet = async (
-  config: WebDavConfig,
+  config: WebDavAuthConfig,
   path: string,
 ): Promise<Blob | null> => {
   const res = await request(config, 'GET', path)
@@ -66,14 +73,14 @@ export const davGet = async (
   return res.blob()
 }
 
-export const davGetJson = async <T>(config: WebDavConfig, path: string): Promise<T | null> => {
+export const davGetJson = async <T>(config: WebDavAuthConfig, path: string): Promise<T | null> => {
   const blob = await davGet(config, path)
   if (!blob) return null
   return JSON.parse(await blob.text()) as T
 }
 
 export const davList = async (
-  config: WebDavConfig,
+  config: WebDavAuthConfig,
   dir: string,
 ): Promise<{ href: string; name: string }[]> => {
   const body = `<?xml version="1.0" encoding="UTF-8"?>
