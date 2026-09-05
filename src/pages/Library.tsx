@@ -238,9 +238,14 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
                 <span className="chevron"><IconChevron /></span>
               </button>
             ) : (
-              <div className="home-title">{TAB_TITLES[tab]}</div>
+              <div className="home-title mine-title">
+                简阅
+                <span className="mine-slogan">一页一世界</span>
+              </div>
             )}
-            {tab === 'shelf' && (
+            {tab === 'mine' ? (
+              <span className="mine-version">v0.1.2</span>
+            ) : (
               <button className="icon-btn" onClick={() => setMenu(menu === 'more' ? null : 'more')} aria-label="菜单">
                 <IconMenu />
               </button>
@@ -315,11 +320,6 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
 
         {tab === 'mine' && (
           <div className="mine-page">
-            <div className="mine-brand">
-              <div className="mine-logo">简阅<span className="seal" /></div>
-              <div className="mine-slogan">一页一世界</div>
-              <div className="mine-version">v0.1.2</div>
-            </div>
             <LibrarySourcesSection
               browseSource={browseSource}
               onBrowse={setBrowseSource}
@@ -327,11 +327,8 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
               setLibExpandedId={setLibExpandedId}
             />
             <SyncPanel />
-            <div className="mine-section">
-              <div className="mine-section-title">关于</div>
-              <div className="mine-about">
-                简阅是一款本地优先的 EPUB 阅读器。书籍与阅读数据保存在设备本地，支持自定义排版、主题与字体，可通过 WebDAV 云备份，并与 KOReader 同步阅读进度。
-              </div>
+            <div className="mine-about">
+              简阅 · 本地优先的 EPUB 阅读器
             </div>
           </div>
         )}
@@ -518,24 +515,15 @@ const LibrarySourcesSection = ({
     <div className="section-group">
       <div className="section-group-head">
         <span className="section-group-title">在线书库</span>
-        <span className="section-group-desc">点击进入 · 长按编辑</span>
+        <button className="section-head-add" onClick={handleAdd} aria-label="添加书库">＋ 添加书库</button>
       </div>
 
       {sources.length === 0 ? (
-        <button className="section-empty" onClick={handleAdd}>
-          <span className="plus">＋</span>
-          <span className="label">添加书库</span>
-          <span className="hint">WebDAV · OPDS（即将）</span>
-        </button>
-      ) : sources.map(renderCard)}
-
-      {sources.length > 0 && (
-        <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-          <button className="btn ghost small" style={{ flex: 1 }} onClick={handleAdd}>
-            ＋ 添加书库
-          </button>
+        <div className="section-empty hint">
+          <span className="label">还没有书库</span>
+          <span className="hint">点击上方「添加书库」</span>
         </div>
-      )}
+      ) : sources.map(renderCard)}
     </div>
   )
 }

@@ -48,6 +48,7 @@ const formatTime = (ts?: number): string => {
 export const SyncPanel = ({ currentBookId }: { currentBookId?: number }) => {
   const [sources, setSources] = useState<SyncSource[]>([])
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
 
   const refresh = async () => setSources(await listSyncSources())
 
@@ -137,26 +138,27 @@ export const SyncPanel = ({ currentBookId }: { currentBookId?: number }) => {
     <div className="section-group">
       <div className="section-group-head">
         <span className="section-group-title">同步管理</span>
-        <span className="section-group-desc">点击开关 · 长按编辑</span>
+        <button className="section-head-add" onClick={() => setAddOpen(v => !v)} aria-label="添加同步服务">＋ 添加同步服务</button>
       </div>
+
+      {addOpen && (
+        <div style={{ display: 'flex', gap: 10, marginTop: -4, marginBottom: 12 }}>
+          <button className="btn ghost small" style={{ flex: 1 }} onClick={() => { setAddOpen(false); void handleAddWebdav() }}>
+            ＋ WebDAV
+          </button>
+          <button className="btn ghost small" style={{ flex: 1 }} onClick={() => { setAddOpen(false); void handleAddKosync() }}>
+            ＋ KOReader
+          </button>
+        </div>
+      )}
 
       <div>
         {sources.length === 0 ? (
-          <div className="section-empty">
-            <span className="plus">＋</span>
-            <span className="label">添加同步服务</span>
-            <span className="hint">WebDAV · KOReader</span>
+          <div className="section-empty hint">
+            <span className="label">还没有同步服务</span>
+            <span className="hint">点击上方「添加同步服务」</span>
           </div>
         ) : sources.map(renderCard)}
-      </div>
-
-      <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-        <button className="btn ghost small" style={{ flex: 1 }} onClick={handleAddWebdav}>
-          ＋ WebDAV
-        </button>
-        <button className="btn ghost small" style={{ flex: 1 }} onClick={handleAddKosync}>
-          ＋ KOReader
-        </button>
       </div>
     </div>
   )

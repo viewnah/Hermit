@@ -397,54 +397,31 @@ input, select {
   flex-direction: column;
   gap: 20px;
 }
-.mine-brand {
-  padding: 28px 20px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  text-align: center;
-}
-.mine-logo {
-  font-family: var(--serif);
-  font-size: 30px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  color: var(--ink);
-}
-.mine-logo .seal {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  background: var(--accent);
-  margin-left: 6px;
-  transform: translateY(-10px);
-}
-.mine-slogan {
-  margin-top: 10px;
-  font-size: 13px;
-  letter-spacing: 0.14em;
-  color: var(--ink-soft);
+.mine-page .section-group { margin-bottom: 0; }
+/* 品牌区并入顶部 header：简阅 + 标语 */
+.mine-title .mine-slogan {
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  color: var(--ink-faint);
+  margin-top: 5px;
+  margin-left: 8px;
 }
 .mine-version {
-  margin-top: 6px;
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
   color: var(--ink-faint);
+  margin-right: 10px;
 }
-.mine-section-title {
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  color: var(--ink-faint);
-  margin: 0 2px 10px;
-}
+/* 页脚：关于一句话 */
 .mine-about {
-  padding: 16px 18px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  font-size: 14px;
-  line-height: 1.9;
-  color: var(--ink-soft);
+  padding-top: 18px;
+  border-top: 1px solid var(--hairline);
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
 }
 
 /* ---------- reader ---------- */
@@ -1820,7 +1797,7 @@ input, select {
 }
 .section-group-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   margin-bottom: 12px;
 }
@@ -1830,11 +1807,29 @@ input, select {
   color: var(--ink);
   letter-spacing: 0.04em;
 }
-.section-group-desc {
-  font-size: 12px;
-  color: var(--ink-faint);
+.section-head-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   margin-left: auto;
-  font-weight: 400;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--accent);
+  background: var(--accent-soft);
+  transition: transform 0.15s ease;
+}
+.section-head-add:active {
+  transform: scale(0.95);
+}
+.section-empty.hint {
+  cursor: default;
+}
+.section-empty.hint:active {
+  background: transparent;
+  border-color: var(--hairline);
 }
 
 /* 折叠态卡片 */
@@ -2017,12 +2012,6 @@ input, select {
 .section-empty:active {
   background: var(--surface-2);
   border-color: var(--accent);
-}
-.section-empty .plus {
-  font-size: 24px;
-  line-height: 1;
-  color: var(--accent);
-  font-weight: 300;
 }
 .section-empty .label {
   font-size: 14px;
