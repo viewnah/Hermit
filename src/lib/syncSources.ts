@@ -82,7 +82,7 @@ export const defaultKosyncConfig = (): KosyncConfig => ({
   url: 'https://sync.koreader.rocks',
   username: '',
   userkey: '',
-  device: 'Clip Reader',
+  device: 'Hermit',
   autoSync: true,
 })
 

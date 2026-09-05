@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "clip-reader",
+  "productName": "Hermit",
   "version": "0.1.0",
   "identifier": "com.hanwei.clipreader",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "简阅",
+        "title": "Hermit",
         "width": 800,
         "height": 600,
         "resizable": true,

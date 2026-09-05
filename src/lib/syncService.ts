@@ -34,7 +34,7 @@ export const defaultKosyncConfig = (): KosyncConfig => ({
   url: DEFAULT_KOSYNC_URL,
   username: '',
   userkey: '',
-  device: 'Clip Reader',
+  device: 'Hermit',
   autoSync: true,
 })
 

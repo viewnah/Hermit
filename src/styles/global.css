@@ -398,15 +398,6 @@ input, select {
   gap: 20px;
 }
 .mine-page .section-group { margin-bottom: 0; }
-/* 品牌区并入顶部 header：简阅 + 标语 */
-.mine-title .mine-slogan {
-  font-size: 11px;
-  font-weight: 400;
-  letter-spacing: 0.22em;
-  color: var(--ink-faint);
-  margin-top: 5px;
-  margin-left: 8px;
-}
 .mine-version {
   font-size: 12px;
   font-variant-numeric: tabular-nums;

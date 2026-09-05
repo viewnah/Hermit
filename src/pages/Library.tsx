@@ -238,10 +238,7 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
                 <span className="chevron"><IconChevron /></span>
               </button>
             ) : (
-              <div className="home-title mine-title">
-                简阅
-                <span className="mine-slogan">一页一世界</span>
-              </div>
+              <div className="home-title mine-title">我的</div>
             )}
             {tab === 'mine' ? (
               <span className="mine-version">v0.1.2</span>
@@ -328,7 +325,7 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
             />
             <SyncPanel />
             <div className="mine-about">
-              简阅 · 本地优先的 EPUB 阅读器
+              Hermit · 本地优先的 EPUB 阅读器
             </div>
           </div>
         )}
