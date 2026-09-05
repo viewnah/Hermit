@@ -60,6 +60,24 @@ const base64ToBytes = (b64: string): Uint8Array => {
   return bytes
 }
 
+/** base64url 编码（URL 安全，无 = / +） */
+const base64UrlEncode = (s: string): string => {
+  const b64 = btoa(s)
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+/**
+ * 构造 Vite dev 代理地址（方案 B）：
+ * 把远端 WebDAV 基址编码进同源路径，由 dev server 转发，绕开浏览器 CORS 与
+ * 自定义 method/header 限制。仅浏览器开发环境使用。
+ */
+const proxyUrlFor = (config: WebDavAuthConfig, path: string): string => {
+  const base = config.url.replace(/\/+$/, '')
+  const dir = (config.path || '').replace(/^\/+|\/+$/g, '')
+  const suffix = (dir ? '/' + dir : '') + (path.startsWith('/') ? path : '/' + path)
+  return `/dav-proxy/${base64UrlEncode(base)}${suffix}`
+}
+
 /**
  * 统一请求入口：
  * - Tauri 运行时：走 Rust 端 reqwest（绕过浏览器 CORS / 证书限制）
@@ -117,10 +135,11 @@ const request = async (
     })
   }
 
-  // 浏览器回退
+  // 浏览器环境：走 Vite dev 代理（同源转发到真实 WebDAV，绕开 CORS）
+  const proxyUrl = proxyUrlFor(config, path)
   let res: Response
   try {
-    res = await fetch(url, {
+    res = await fetch(proxyUrl, {
       method,
       headers: merged,
       body: body as BodyInit | undefined,
@@ -130,6 +149,19 @@ const request = async (
       ? '无法连接服务器（请检查地址与网络）'
       : e instanceof Error ? e.message : String(e)
     throw new WebDavError(reason)
+  }
+  if (!res.ok && res.headers.get('content-type')?.includes('text/plain')) {
+    // 代理层返回的中文错误（如 502 “无法连接服务器…”）直接透传
+    const text = await res.text().catch(() => '')
+    if (/[\u4e00-\u9fa5]/.test(text)) {
+      throw new WebDavError(text, res.status)
+    }
+    // 重建 Response，保留 body 供上层判断
+    return new Response(text, {
+      status: res.status,
+      statusText: res.statusText,
+      headers: res.headers,
+    })
   }
   return res
 }

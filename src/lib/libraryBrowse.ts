@@ -42,17 +42,21 @@ const joinPath = (base: string, sub: string): string => {
 
 /**
  * 下载远端书库的 epub 文件并导入到本地书架。
+ * @param dir 当前浏览的相对子目录（如 '/public/图书'）；根目录为 '/' 或 ''
  * 返回导入结果。
  */
 export const downloadLibraryFile = async (
   source: LibrarySource,
   entry: LibraryEntry,
+  dir = '/',
 ): Promise<{ ok: boolean; message: string }> => {
   if (!isWebDavLibrary(source)) return { ok: false, message: '不支持的书库类型' }
   if (entry.isDir) return { ok: false, message: '请选择文件而非目录' }
   if (!/\.epub$/i.test(entry.name)) return { ok: false, message: '仅支持 EPUB 文件' }
   try {
-    const blob = await davGet(toWebdavAuth(source.config), '/' + entry.name)
+    // 相对 source.config.path 的子目录路径（如 '/public/图书/xxx.epub'）
+    const relPath = joinPath(dir, entry.name)
+    const blob = await davGet(toWebdavAuth(source.config), relPath)
     if (!blob) return { ok: false, message: '文件不存在' }
     const file = new File([blob], entry.name, { type: 'application/epub+zip' })
     const result = await importBookFile(file)

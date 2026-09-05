@@ -336,7 +336,11 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
       {browseSource && (
         <LibraryBrowse
           source={browseSource}
-          onBack={() => setBrowseSource(null)}
+          onBack={() => {
+            setBrowseSource(null)
+            // 浏览期间可能从书库下载导入了新书，返回时刷新书架列表
+            void refresh()
+          }}
         />
       )}
 
@@ -352,7 +356,10 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
       )}
 
       <nav className="bottom-nav">
-        <button className={`nav-item ${tab === 'shelf' ? 'active' : ''}`} onClick={() => setTab('shelf')}>
+        <button
+          className={`nav-item ${tab === 'shelf' ? 'active' : ''}`}
+          onClick={() => { setTab('shelf'); void refresh() }}
+        >
           <IconShelf /><span>书架</span>
         </button>
         <button className={`nav-item ${tab === 'mine' ? 'active' : ''}`} onClick={() => setTab('mine')}>

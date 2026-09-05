@@ -81,7 +81,7 @@ export const LibraryBrowse = ({ source, onBack }: Props) => {
     }
     if (downloading) return
     setDownloading(entry.name)
-    const res = await downloadLibraryFile(source, entry)
+    const res = await downloadLibraryFile(source, entry, path)
     toast(res.message)
     setDownloading(null)
   }
