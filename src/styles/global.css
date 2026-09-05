@@ -1201,6 +1201,171 @@ input, select {
 }
 .field input:focus { border-color: var(--accent); }
 
+/* 密码框 + 显示/隐藏小眼睛 */
+.pwd-field {
+  position: relative;
+  display: block;
+}
+.pwd-field input[type='text'],
+.pwd-field input[type='password'] {
+  width: 100%;
+  padding-right: 42px;
+}
+.pwd-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: transparent;
+  color: var(--ink-faint);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+  padding: 0;
+}
+.pwd-toggle:active {
+  background: var(--surface-2);
+  color: var(--ink-soft);
+}
+
+/* 名称行 + 测试连接按钮同行 */
+.name-test-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.name-test-row input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+.name-test-row .btn {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* 选择目录栏（测试连接成功后显示） */
+.dir-field-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--hairline);
+  background: var(--paper);
+  font-size: 15px;
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.12s ease;
+  text-align: left;
+}
+.dir-field-btn:active {
+  transform: scale(0.99);
+  border-color: var(--accent);
+}
+.dir-field-path {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+}
+
+/* 内嵌目录选择器 */
+.dir-picker {
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--surface-2);
+  padding: 10px 12px;
+  margin-top: 2px;
+}
+.dir-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.dir-picker-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+}
+.dir-picker-crumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--ink);
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--paper);
+  border: 1px solid var(--hairline);
+  margin-bottom: 8px;
+  min-height: 34px;
+}
+.dir-picker-crumb .crumb {
+  cursor: pointer;
+  color: var(--ink-soft);
+}
+.dir-picker-crumb .crumb.active {
+  color: var(--ink);
+  font-weight: 500;
+}
+.dir-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.dir-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: var(--paper);
+  border: 1px solid var(--hairline);
+  color: var(--ink-soft);
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+.dir-picker-item:active {
+  transform: scale(0.98);
+  background: var(--surface-3, var(--surface-2));
+}
+.dir-picker-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink);
+}
+.dir-picker-empty {
+  padding: 18px 12px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+.dir-picker-foot {
+  margin-top: 10px;
+}
+
 /* 自定义主题取色器：色块（点击展开内嵌取色器） */
 .color-chip {
   display: flex;

@@ -5,6 +5,8 @@ import { deleteBook, importBookFile } from '../lib/bookService'
 import { toast, confirmDialog } from '../components/ui'
 import { SyncPanel } from '../components/SyncPanel'
 import { SectionCard } from '../components/SectionCard'
+import { LibraryDirPicker } from '../components/LibraryDirPicker'
+import { PasswordField } from '../components/PasswordField'
 import { LibraryBrowse } from './LibraryBrowse'
 import {
   addLibrarySource, defaultLibraryWebDavConfig, deriveLibraryName,
@@ -437,14 +439,21 @@ const LibrarySourcesSection = ({
   const refresh = async () => setSources(await listLibrarySources())
   useEffect(() => { void refresh() }, [])
 
-  const handleAdd = async () => {
-    const cfg = defaultLibraryWebDavConfig()
-    const name = deriveLibraryName('webdav', cfg)
-    await addLibrarySource({ kind: 'webdav', name, config: cfg, enabled: false })
-    const list = await listLibrarySources()
-    setSources(list)
-    setLibExpandedId(list[list.length - 1].id)
+  /** 正在新增（草稿）的书库；null 表示未在新增。保存成功后才真正入库 */
+  const [draft, setDraft] = useState<LibrarySource | null>(null)
+
+  const handleAdd = () => {
+    setDraft({
+      id: '',
+      kind: 'webdav',
+      name: '',
+      config: defaultLibraryWebDavConfig(),
+      enabled: false,
+      createdAt: 0,
+      updatedAt: 0,
+    })
   }
+  const closeDraft = () => setDraft(null)
 
   const handleRemove = async (s: LibrarySource) => {
     const ok = await confirmDialog(`移除「${s.name}」？`, {
@@ -457,27 +466,19 @@ const LibrarySourcesSection = ({
     toast('已移除')
   }
 
-  const handleEnter = async (s: LibrarySource) => {
-    if (!s.enabled) {
-      // 停用态：未配置/未启用时点击进入配置（不直接进入浏览）
-      if (!s.config.url) {
-        setLibExpandedId(s.id)
-        return
-      }
-      // 已配置但未启用：提示用户启用
-      toast('请先启用此书库')
+  const handleEnter = (s: LibrarySource) => {
+    // 未配置地址：展开编辑；已配置：进入浏览（点击 EPUB 即导入书架）
+    if (!s.config.url) {
+      setLibExpandedId(s.id)
       return
     }
     onBrowse(s)
   }
 
   const renderCard = (s: LibrarySource) => {
-    const enabled = s.enabled
     const subtitle = !s.config.url
       ? <span><span className="dot off" />未配置</span>
-      : enabled
-        ? <span><span className="dot" />已连接 · {stripScheme(s.config.url)}</span>
-        : <span><span className="dot off" />已停用</span>
+      : <span><span className="dot" />已连接 · {stripScheme(s.config.url)}</span>
 
     return (
       <SectionCard
@@ -498,11 +499,11 @@ const LibrarySourcesSection = ({
         onCollapse={() => setLibExpandedId(null)}
       >
         <LibraryEditor
+          draft={false}
           source={s}
           onSaved={refresh}
           onClose={() => setLibExpandedId(null)}
           onRemove={() => handleRemove(s)}
-          onEnter={() => { setLibExpandedId(null); onBrowse(s) }}
         />
       </SectionCard>
     )
@@ -515,7 +516,26 @@ const LibrarySourcesSection = ({
         <button className="section-head-add" onClick={handleAdd} aria-label="添加书库">＋ 添加书库</button>
       </div>
 
-      {sources.length === 0 ? (
+      {draft && (
+        <SectionCard
+          icon={<IconLibrary />}
+          title="添加书库"
+          subtitle={null}
+          expanded
+          onExpand={() => {}}
+          onCollapse={closeDraft}
+        >
+          <LibraryEditor
+            draft
+            source={draft}
+            onSaved={refresh}
+            onClose={closeDraft}
+            onRemove={() => {}}
+          />
+        </SectionCard>
+      )}
+
+      {sources.length === 0 && !draft ? (
         <div className="section-empty hint">
           <span className="label">还没有书库</span>
           <span className="hint">点击上方「添加书库」</span>
@@ -529,47 +549,97 @@ const stripScheme = (url: string): string =>
   url.replace(/^https?:\/\//, '').replace(/\/+$/, '') || '未填写'
 
 const LibraryEditor = ({
-  source, onSaved, onClose, onRemove, onEnter,
+  draft, source, onSaved, onClose, onRemove,
 }: {
+  draft?: boolean
   source: LibrarySource
   onSaved: () => Promise<void> | void
   onClose: () => void
   onRemove: () => void
-  onEnter: () => void
 }) => {
   const [cfg, setCfg] = useState<LibraryWebDavConfig>(
     isWebDavLibrary(source) ? source.config : defaultLibraryWebDavConfig(),
   )
+  // 名称：可手动修改；留空时保存按服务器地址自动生成
+  const [name, setName] = useState<string>(source.name ?? '')
   const [busy, setBusy] = useState(false)
+  const [tested, setTested] = useState(false)
+  const [picking, setPicking] = useState(false)
 
   const handleTest = async () => {
+    if (!cfg.url.trim()) {
+      toast('请先填写服务器地址')
+      return
+    }
     setBusy(true)
     try {
-      const msg = await testLibraryConnection({ ...source, config: cfg })
-      toast(msg)
+      // 书库编辑器仅用于 WebDAV；测试时以 '/' 为探测根目录，验证服务器与账号即可
+      const testSource: LibrarySource = {
+        kind: 'webdav',
+        id: source.id,
+        name: name.trim() || cfg.url.trim(),
+        config: { ...cfg, path: '/' },
+        enabled: false,
+        createdAt: source.createdAt,
+        updatedAt: source.updatedAt,
+      }
+      await testLibraryConnection(testSource)
+      toast('连接成功')
+      setTested(true)
     } catch (e) {
-      toast(e instanceof WebDavError ? e.message : '连接失败')
+      setTested(false)
+      const reason = e instanceof WebDavError ? e.message : (e instanceof Error ? e.message : '未知错误')
+      toast(`连接失败：${reason}`)
     } finally { setBusy(false) }
   }
 
   const handleSave = async () => {
+    if (!cfg.url.trim()) {
+      toast('请填写服务器地址')
+      return
+    }
     setBusy(true)
     try {
-      const name = cfg.url ? deriveLibraryName('webdav', cfg) : source.name
-      await updateLibrarySource(source.id, { config: cfg, name, enabled: cfg.url.length > 0 })
+      const finalName = name.trim() || deriveLibraryName('webdav', cfg)
+      if (draft) {
+        await addLibrarySource({ kind: 'webdav', name: finalName, config: cfg, enabled: true })
+      } else {
+        await updateLibrarySource(source.id, { config: cfg, name: finalName, enabled: true })
+      }
       await onSaved()
       onClose()
       toast('已保存')
     } finally { setBusy(false) }
   }
 
+  const renderDirField = () => (
+    <div className="field">
+      <span className="field-label">选择目录</span>
+      {picking ? (
+        <LibraryDirPicker
+          cfg={cfg}
+          initialPath={cfg.path}
+          onPick={(path) => {
+            setCfg({ ...cfg, path })
+            setPicking(false)
+          }}
+          onCancel={() => setPicking(false)}
+        />
+      ) : (
+        <button
+          className="dir-field-btn"
+          onClick={() => setPicking(true)}
+          type="button"
+        >
+          <span className="dir-field-path">{cfg.path || '/'}</span>
+          <span style={{ color: 'var(--ink-faint)' }}>›</span>
+        </button>
+      )}
+    </div>
+  )
+
   return (
     <>
-      <label className="field">
-        <span className="field-label">名称</span>
-        <input type="text" value={cfg.url ? stripScheme(cfg.url) : ''} readOnly
-          placeholder="保存后自动从 URL 生成" />
-      </label>
       <label className="field">
         <span className="field-label">服务器地址</span>
         <input type="url" placeholder="https://dav.example.com/dav"
@@ -580,30 +650,28 @@ const LibraryEditor = ({
         <input type="text" autoComplete="off"
           value={cfg.username} onChange={e => setCfg({ ...cfg, username: e.target.value })} />
       </label>
+      <PasswordField
+        label="密码"
+        value={cfg.password}
+        onChange={e => setCfg({ ...cfg, password: e.target.value })}
+      />
       <label className="field">
-        <span className="field-label">密码</span>
-        <input type="password" autoComplete="new-password"
-          value={cfg.password} onChange={e => setCfg({ ...cfg, password: e.target.value })} />
-      </label>
-      <label className="field">
-        <span className="field-label">根目录</span>
-        <input type="text" placeholder="/clip-reader"
-          value={cfg.path} onChange={e => setCfg({ ...cfg, path: e.target.value.trim() || '/clip-reader' })} />
-      </label>
-      <label className="row-card" style={{ width: '100%', textAlign: 'left' }}
-        onClick={() => setCfg({ ...cfg, browseOnly: !cfg.browseOnly })}>
-        <div className="grow">
-          <div className="title">只浏览，不下载到本地</div>
-          <div className="sub">关闭后点击 EPUB 会下载并导入书架</div>
+        <span className="field-label">名称</span>
+        <div className="name-test-row">
+          <input type="text"
+            placeholder={cfg.url ? `默认：${stripScheme(cfg.url)}` : '留空则按服务器地址自动生成'}
+            value={name} onChange={e => setName(e.target.value)} />
+          <button className="btn" disabled={busy} onClick={handleTest}>测试连接</button>
         </div>
-        <span className={`toggle ${cfg.browseOnly ? 'on' : ''}`} />
       </label>
 
+      {tested && renderDirField()}
+
       <div className="section-card-footer">
-        <button className="btn" style={{ flex: 'none', padding: '8px 14px', color: 'var(--accent)' }}
-          onClick={onRemove}>删除</button>
-        <button className="btn" disabled={busy} onClick={handleTest}>测试连接</button>
-        <button className="btn" disabled={busy} onClick={onEnter}>进入浏览</button>
+        {!draft && (
+          <button className="btn" style={{ flex: 'none', padding: '8px 14px', color: 'var(--accent)' }}
+            onClick={onRemove}>删除</button>
+        )}
         <button className="btn primary" disabled={busy} onClick={handleSave}>保存</button>
       </div>
     </>

@@ -67,7 +67,7 @@ export const defaultLibraryWebDavConfig = (): LibraryWebDavConfig => ({
   url: '',
   username: '',
   password: '',
-  path: '/clip-reader',
+  path: '/',
   browseOnly: false,
 })
 

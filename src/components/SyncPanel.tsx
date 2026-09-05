@@ -6,6 +6,7 @@ import { syncWebdav } from '../lib/syncService'
 import { db } from '../db'
 import { confirmDialog, toast } from './ui'
 import { SectionCard } from './SectionCard'
+import { PasswordField } from './PasswordField'
 import {
   addSyncSource, defaultKosyncConfig, defaultWebDavSyncConfig,
   isKosync, isWebDavSync, listSyncSources, removeSyncSource, setSyncReport,
@@ -234,11 +235,11 @@ const WebDavSyncEditor = ({
         <input type="text" autoComplete="off"
           value={cfg.username} onChange={e => setCfg({ ...cfg, username: e.target.value })} />
       </label>
-      <label className="field">
-        <span className="field-label">密码</span>
-        <input type="password" autoComplete="new-password"
-          value={cfg.password} onChange={e => setCfg({ ...cfg, password: e.target.value })} />
-      </label>
+      <PasswordField
+        label="密码"
+        value={cfg.password}
+        onChange={e => setCfg({ ...cfg, password: e.target.value })}
+      />
       <label className="field">
         <span className="field-label">同步目录</span>
         <input type="text" placeholder="/clip-reader"
@@ -385,11 +386,12 @@ const KosyncEditor = ({
         <input type="text" autoComplete="off"
           value={cfg.username} onChange={e => persist({ username: e.target.value.trim() })} />
       </label>
-      <label className="field">
-        <span className="field-label">密码</span>
-        <input type="password" autoComplete="new-password" placeholder="用于注册 / 登录"
-          value={pwd} onChange={e => setPwd(e.target.value)} />
-      </label>
+      <PasswordField
+        label="密码"
+        placeholder="用于注册 / 登录"
+        value={pwd}
+        onChange={e => setPwd(e.target.value)}
+      />
       <label className="field">
         <span className="field-label">设备名称（其他设备可见）</span>
         <input type="text" value={cfg.device} onChange={e => persist({ device: e.target.value })} />

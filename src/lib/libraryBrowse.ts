@@ -65,16 +65,12 @@ export const downloadLibraryFile = async (
   }
 }
 
-/** 测试 WebDAV 书库连接 */
+/** 测试 WebDAV 书库连接。
+ * 成功 resolve；失败时抛出带原因的 WebDavError（认证失败 / 无权限 / 网络错误 / HTTP 状态等） */
 export const testLibraryConnection = async (source: LibrarySource): Promise<string> => {
   if (!isWebDavLibrary(source)) throw new Error('本期仅支持 WebDAV 书库')
-  try {
-    // 借用 webdav.ts 的 davTest 行为：直接 fetch
-    const { davTest } = await import('./webdav')
-    await davTest(toWebdavAuth(source.config))
-    return '连接成功'
-  } catch (e) {
-    if (e instanceof WebDavError) return e.message
-    return '连接失败'
-  }
+  // 借用 webdav.ts 的 davTest：网络 / 认证 / HTTP 错误均会抛出带原因的 WebDavError
+  const { davTest } = await import('./webdav')
+  await davTest(toWebdavAuth(source.config))
+  return '连接成功'
 }
