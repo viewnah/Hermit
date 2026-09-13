@@ -106,10 +106,12 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   const slideHeadB = useRef<HTMLDivElement>(null)
   const slideFootA = useRef<HTMLDivElement>(null)
   const slideFootB = useRef<HTMLDivElement>(null)
+  // 滑动翻页时跟踪 renderer.page，用于页码实时跟随（越过半页即切换显示）
+  const lastSlidePage = useRef<number | null>(null)
 
   // 滑动翻页的页眉/页脚跟随：监听 renderer 的 scroll，按容器平移量同步驱动
   // 两份拷贝的 transform——A 份是当前页（静止时停在 0，随翻页滑出），
-  // B 份是相邻页（停在 ±size，随翻页滑入）；页码在落定后由 relocate 统一更新
+  // B 份是相邻页（停在 ±size，随翻页滑入）；页码也在此实时跟随（越过半页即切换）
   useEffect(() => {
     const r = view?.renderer
     if (!isSlideTurn || !r) return
@@ -131,7 +133,19 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
       set(slideHeadB.current, xB)
       set(slideFootA.current, xA)
       set(slideFootB.current, xB)
+      // 页码实时跟随：renderer.page 越过半页即切换显示值，不等动画/落定事件。
+      // 只处理 ±1 的单页翻动（跨章跳转的大变化交给 relocate 校准）；
+      // secPage.cur 与 renderer.page 同为 1 基显示值，可直接使用
+      const pg = r.page
+      const prevPg = lastSlidePage.current
+      if (prevPg != null && pg !== prevPg && Math.abs(pg - prevPg) === 1) {
+        const delta = pg - prevPg
+        setSecPage(s => s ? { ...s, cur: Math.min(s.total, Math.max(1, pg)) } : s)
+        setBookPage(s => s ? { ...s, cur: Math.min(s.total, Math.max(1, s.cur + delta)) } : s)
+      }
+      lastSlidePage.current = pg
     }
+    if (view?.renderer) lastSlidePage.current = view.renderer.page
     update()
     r.addEventListener('scroll', update)
     return () => r.removeEventListener('scroll', update)
