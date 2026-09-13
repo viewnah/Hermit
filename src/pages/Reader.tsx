@@ -107,19 +107,14 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   const slideFootB = useRef<HTMLDivElement>(null)
   // 跟踪 renderer.page：页码实时跟随（越过半页即切换显示）
   const lastSlidePage = useRef<number | null>(null)
-  // 覆盖/仿真拖拽跟随的锚点：静止页位置
-  const turnAnchor = useRef(0)
-  const lastCoverPos = useRef<number | null>(null)
 
-  // 页眉/页脚跟随：监听 renderer 的 scroll。
-  // 滑动 = 双拷贝按连续条带偏移（floor 定位），拖拽与续接动画逐帧跟随；
-  // 覆盖/仿真 = 拖拽时旧页拷贝按「当前位置 - 锚点」跟手滑出、新页拷贝原地待命，
-  // 松手后快照动画自带拖拽位置无缝续接（VT 期间的落定跳变会重置锚点）
+  // 页眉/页脚跟随：监听 renderer 的 scroll，按连续条带偏移驱动双拷贝——
+  // 拖拽阶段所有翻页模式的正文都是连续平移，两份拷贝各自贴住所在列的正文
+  // （A=当前列、B=相邻列）同步移动；滑动松手后续接动画、覆盖/仿真松手后
+  // 的快照动画也逐帧触发 scroll，页码同时在此实时跟随（越过半页即切换）
   useEffect(() => {
     const r = view?.renderer
     if (!paginatedTurn || !r) return
-    turnAnchor.current = r.containerPosition
-    lastCoverPos.current = r.containerPosition
     const update = () => {
       const size = r.size
       if (!size) return
@@ -129,29 +124,13 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
         if (!el) return
         el.style.transform = vertical ? `translate3d(0,${x}px,0)` : `translate3d(${x}px,0,0)`
       }
-      if (settings.turnStyle === 'slide') {
-        // 当前列的视口偏移 = 列基准位置 - 滚动位置；正退负进对 RTL 同样成立
-        const k = Math.floor(pos / size)
-        const xA = k * size - pos
-        set(slideHeadA.current, xA)
-        set(slideHeadB.current, xA + size)
-        set(slideFootA.current, xA)
-        set(slideFootB.current, xA + size)
-      } else {
-        // 单帧大跳（VT 落定跳变/程序跳页）→ 重置锚点，防止页眉被甩出
-        const jumped = lastCoverPos.current != null &&
-          Math.abs(pos - lastCoverPos.current) > size * 0.3
-        if (jumped || document.documentElement.classList.contains('foliate-vt') ||
-            Math.abs(pos - turnAnchor.current) > size) {
-          turnAnchor.current = pos
-        }
-        const dx = Math.max(-size, Math.min(size, pos - turnAnchor.current))
-        set(slideHeadA.current, -dx)
-        set(slideFootA.current, -dx)
-        set(slideHeadB.current, 0)
-        set(slideFootB.current, 0)
-      }
-      lastCoverPos.current = pos
+      // 当前列的视口偏移 = 列基准位置 - 滚动位置；正退负进对 RTL 同样成立
+      const k = Math.floor(pos / size)
+      const xA = k * size - pos
+      set(slideHeadA.current, xA)
+      set(slideHeadB.current, xA + size)
+      set(slideFootA.current, xA)
+      set(slideFootB.current, xA + size)
       // 页码实时跟随：renderer.page 越过半页即切换显示值，不等动画/落定事件。
       // 只处理 ±1 的单页翻动（跨章跳转的大变化交给 relocate 校准）；
       // secPage.cur 与 renderer.page 同为 1 基显示值，可直接使用
@@ -168,7 +147,7 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
     update()
     r.addEventListener('scroll', update)
     return () => r.removeEventListener('scroll', update)
-  }, [paginatedTurn, view, settings.turnStyle])
+  }, [paginatedTurn, view])
 
   // 扁平化 TOC，用于上一章/下一章导航
   const flatToc = useMemo(() => {
