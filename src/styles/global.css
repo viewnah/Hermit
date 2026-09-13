@@ -432,6 +432,16 @@ input, select {
   background-position: center;
 }
 
+/* 翻页 VT 组根：正文与页眉/页脚同住一个 view-transition 组（foliate-turn），
+   分层翻页时整页（含页眉页脚）作为快照一起翻动 */
+.reader-turn-root {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .reader-content { position: relative; flex: 1; min-height: 0; }
 
 .reader-content foliate-view {
