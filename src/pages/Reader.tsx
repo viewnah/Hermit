@@ -96,9 +96,9 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   const theme = resolveTheme(settings)
   const scrolled = settings.flow === 'scrolled'
   scrolledRef.current = scrolled
-  // 覆盖翻页时页眉/页脚命名成独立 view-transition 组，随页面卡片一起滑动
-  // （paginator 注入的样式会对这三个组播放同一套滑动动画）
-  const vtSlideUi = !scrolled && settings.turnStyle === 'cover'
+  // 覆盖/仿真翻页时页眉/页脚命名成独立 view-transition 组，随页面卡片一起翻动
+  // （paginator 注入的样式会对这三个组播放同一套翻页动画）
+  const vtSlideUi = !scrolled && settings.turnStyle !== 'slide'
 
   // 扁平化 TOC，用于上一章/下一章导航
   const flatToc = useMemo(() => {
@@ -1123,7 +1123,7 @@ function applyRendererSettings(
   else r.removeAttribute('animated')
   // 覆盖翻页仅在分页模式生效（滚动模式无翻页动画）；滑动卡片快照的透明区域
   // 由 --foliate-vt-bg 填充，随主题底色走
-  if (settings.flow === 'paginated' && settings.turnStyle === 'cover') r.setAttribute('turn-style', 'cover')
+  if (settings.flow === 'paginated' && settings.turnStyle !== 'slide') r.setAttribute('turn-style', settings.turnStyle)
   else r.removeAttribute('turn-style')
   document.documentElement.style.setProperty('--foliate-vt-bg', resolveTheme(settings).bg)
   r.setStyles?.(buildReaderCss(settings, fonts))

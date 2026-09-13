@@ -706,6 +706,7 @@ export const SettingsSheet = ({
                   options={[
                     { value: 'slide' as const, label: '平移' },
                     { value: 'cover' as const, label: '覆盖' },
+                    { value: 'curl' as const, label: '仿真' },
                   ]}
                   value={settings.turnStyle}
                   onChange={v => update({ turnStyle: v })}

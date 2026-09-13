@@ -32,7 +32,7 @@ const animate = (a, b, duration, ease, render) => new Promise(resolve => {
 // 只能从顶层文档注入样式，paginator 自己的 shadow root 管不到
 const VT_STYLE_ID = 'foliate-view-transition-styles'
 // 页面本体（foliate-turn）与悬浮页眉/页脚（foliate-turn-head/foot，由宿主应用
-// 命名）各成一个 VT 组，共用同一套滑动动画才能同步移动、看起来像一张完整的纸
+// 命名）各成一个 VT 组，共用同一套翻页动画才能同步移动、看起来像一张完整的纸
 const vtTurnGroupCss = (name, shadow) => `
         .foliate-vt::view-transition-old(${name}),
         .foliate-vt::view-transition-new(${name}) {
@@ -41,6 +41,7 @@ const vtTurnGroupCss = (name, shadow) => `
             /* 必须正常混合而非默认的 plus-lighter，否则旧页快照盖不住新页 */
             mix-blend-mode: normal;
         }
+        /* 覆盖：整页平移滑出（前进）/滑入（后退） */
         .foliate-vt-cover.foliate-vt-forward::view-transition-old(${name}) {
             z-index: 1;
             animation: foliate-turn-out-left 300ms cubic-bezier(.25,.46,.45,.94) both;
@@ -62,23 +63,51 @@ const vtTurnGroupCss = (name, shadow) => `
         }
         .foliate-vt-cover.foliate-vt-backward.foliate-vt-top::view-transition-new(${name}) {
             animation-name: foliate-turn-in-top;
+        }
+        /* 仿真：透明圆盘从书外侧下角（eat 类切换起点）向外生长成折痕弧，
+           旧页沿弧线被"卷走"；两个方向都只动旧页，新页静止在下。
+           Chrome 不给活的 new 层画 mask、只画静态 old 快照，所以后退也编排
+           旧页从书脊侧退去，读感等同新页展开。6% 是卷起的软边渐变带 */
+        .foliate-vt-curl::view-transition-old(${name}) {
+            z-index: 1;
+            -webkit-mask-image: radial-gradient(circle at var(--foliate-fold-x, 108%) 108%,
+                transparent calc(var(--foliate-fold) - 6%), black var(--foliate-fold));
+            mask-image: radial-gradient(circle at var(--foliate-fold-x, 108%) 108%,
+                transparent calc(var(--foliate-fold) - 6%), black var(--foliate-fold));
+            animation: foliate-turn-curl-fold 450ms cubic-bezier(.3,.1,.4,1) both;
+        }
+        .foliate-vt-curl::view-transition-new(${name}) {
+            animation: none;
         }`
 const injectViewTransitionStyles = () => {
     if (document.getElementById(VT_STYLE_ID)) return
     const style = document.createElement('style')
     style.id = VT_STYLE_ID
     style.textContent = `
+        .foliate-vt::view-transition { pointer-events: none; }
         .foliate-vt::view-transition-old(root),
         .foliate-vt::view-transition-new(root) { animation: none; }
         ${vtTurnGroupCss('foliate-turn', 'box-shadow: 0 0 24px rgba(0, 0, 0, .35);')}
         ${vtTurnGroupCss('foliate-turn-head', '')}
         ${vtTurnGroupCss('foliate-turn-foot', '')}
+        /* 折痕起点：默认外侧角（eat-right，108% 108%）；后退/RTL 从书脊侧角扫过 */
+        .foliate-vt-curl.foliate-vt-eat-left { --foliate-fold-x: -8%; }
+        /* 注册成 <percentage> 才能在 keyframes 里插值，驱动 mask 的渐变断点逐帧重绘 */
+        @property --foliate-fold {
+            syntax: '<percentage>';
+            inherits: false;
+            initial-value: 0%;
+        }
         @keyframes foliate-turn-out-left { to { transform: translateX(-100%) } }
         @keyframes foliate-turn-out-right { to { transform: translateX(100%) } }
         @keyframes foliate-turn-out-top { to { transform: translateY(-100%) } }
         @keyframes foliate-turn-in-left { from { transform: translateX(-100%) } }
         @keyframes foliate-turn-in-right { from { transform: translateX(100%) } }
         @keyframes foliate-turn-in-top { from { transform: translateY(-100%) } }
+        @keyframes foliate-turn-curl-fold {
+            from { --foliate-fold: 0%; }
+            to { --foliate-fold: 118%; }
+        }
     `
     document.head.append(style)
 }
@@ -1017,23 +1046,27 @@ export class Paginator extends HTMLElement {
                 : f => f
     }
     get #layeredTurn() {
-        return this.getAttribute('turn-style') === 'cover'
+        const style = this.getAttribute('turn-style')
+        return (style === 'cover' || style === 'curl')
             && !this.scrolled
             && typeof document.startViewTransition === 'function'
-            ? 'cover' : null
+            ? style : null
     }
-    // 覆盖翻页：startViewTransition 先拍旧页快照，回调内瞬时跳到新页，
-    // 之后旧页快照作为不透明卡片在新页之上滑出（forward），
-    // 或新页快照滑入盖住旧页（backward）。页面本身是分栏大容器的一片切片，
+    // 覆盖/仿真翻页：startViewTransition 先拍旧页快照，回调内瞬时跳到新页，
+    // 之后旧页快照在静止的新页之上"卷走"（覆盖=整卡平移滑出，仿真=折痕弧扫过），
+    // 后退则反向编排。页面本身是分栏大容器的一片切片，
     // 无法作为 DOM 层移动，只能靠快照分层
     #viewTransitionTurn(offset, reason) {
+        const style = this.#layeredTurn
         const pos = this.containerPosition
-        const forward = this.#vertical
-            ? offset > pos
-            : this.#rtl ? offset < pos : offset > pos
+        // RTL 横向滚动坐标为负、竖排 scrollTop 恒正，按绝对值比较即可
+        const forward = Math.abs(offset) > Math.abs(pos)
         const side = this.#vertical ? 'top' : this.#rtl ? 'right' : 'left'
-        const classes = ['foliate-vt', 'foliate-vt-cover',
-            forward ? 'foliate-vt-forward' : 'foliate-vt-backward', `foliate-vt-${side}`]
+        // 仿真卷角起点：前进从书外侧角、后退从书脊侧（Readest 同款）
+        const eatSide = forward !== this.#rtl ? 'right' : 'left'
+        const classes = ['foliate-vt', `foliate-vt-${style}`,
+            forward ? 'foliate-vt-forward' : 'foliate-vt-backward',
+            `foliate-vt-${side}`, `foliate-vt-eat-${eatSide}`]
         // named 伪元素树从文档根部解析：沿 shadow host 上溯，把
         // view-transition-name 设到最外层宿主（foliate-view）上
         let namedHost = this
@@ -1055,7 +1088,12 @@ export class Paginator extends HTMLElement {
             this.#afterScroll(reason)
         })
         transition.finished.finally(cleanup)
-        return transition.finished.then(() => {})
+        return transition.finished.then(() => {
+            // 过渡期间邻接章节加载可能把容器重新锚到旧位置，结束后再钉回目标
+            if (this.#vtToken !== token) return
+            this.containerPosition = offset
+            this.#scrollBounds = [offset, this.atStart ? 0 : this.size, this.atEnd ? 0 : this.size]
+        })
     }
     async #scrollToRect(rect, reason) {
         if (this.scrolled) {
