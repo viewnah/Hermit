@@ -40,6 +40,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   followSystemBrightness: false,
   flow: 'paginated',
   animated: true,
+  turnStyle: 'cover',
   tapTurn: true,
   tapAnimated: true,
   tapLeftNext: false,

@@ -28,6 +28,61 @@ const animate = (a, b, duration, ease, render) => new Promise(resolve => {
     requestAnimationFrame(step)
 })
 
+// 覆盖翻页（turn-style="cover"）的 ::view-transition 伪元素挂在文档根部，
+// 只能从顶层文档注入样式，paginator 自己的 shadow root 管不到
+const VT_STYLE_ID = 'foliate-view-transition-styles'
+// 页面本体（foliate-turn）与悬浮页眉/页脚（foliate-turn-head/foot，由宿主应用
+// 命名）各成一个 VT 组，共用同一套滑动动画才能同步移动、看起来像一张完整的纸
+const vtTurnGroupCss = (name, shadow) => `
+        .foliate-vt::view-transition-old(${name}),
+        .foliate-vt::view-transition-new(${name}) {
+            animation: none;
+            background: var(--foliate-vt-bg, Canvas);
+            /* 必须正常混合而非默认的 plus-lighter，否则旧页快照盖不住新页 */
+            mix-blend-mode: normal;
+        }
+        .foliate-vt-cover.foliate-vt-forward::view-transition-old(${name}) {
+            z-index: 1;
+            animation: foliate-turn-out-left 300ms cubic-bezier(.25,.46,.45,.94) both;
+            ${shadow}
+        }
+        .foliate-vt-cover.foliate-vt-forward.foliate-vt-right::view-transition-old(${name}) {
+            animation-name: foliate-turn-out-right;
+        }
+        .foliate-vt-cover.foliate-vt-forward.foliate-vt-top::view-transition-old(${name}) {
+            animation-name: foliate-turn-out-top;
+        }
+        .foliate-vt-cover.foliate-vt-backward::view-transition-new(${name}) {
+            z-index: 1;
+            animation: foliate-turn-in-left 300ms cubic-bezier(.25,.46,.45,.94) both;
+            ${shadow}
+        }
+        .foliate-vt-cover.foliate-vt-backward.foliate-vt-right::view-transition-new(${name}) {
+            animation-name: foliate-turn-in-right;
+        }
+        .foliate-vt-cover.foliate-vt-backward.foliate-vt-top::view-transition-new(${name}) {
+            animation-name: foliate-turn-in-top;
+        }`
+const injectViewTransitionStyles = () => {
+    if (document.getElementById(VT_STYLE_ID)) return
+    const style = document.createElement('style')
+    style.id = VT_STYLE_ID
+    style.textContent = `
+        .foliate-vt::view-transition-old(root),
+        .foliate-vt::view-transition-new(root) { animation: none; }
+        ${vtTurnGroupCss('foliate-turn', 'box-shadow: 0 0 24px rgba(0, 0, 0, .35);')}
+        ${vtTurnGroupCss('foliate-turn-head', '')}
+        ${vtTurnGroupCss('foliate-turn-foot', '')}
+        @keyframes foliate-turn-out-left { to { transform: translateX(-100%) } }
+        @keyframes foliate-turn-out-right { to { transform: translateX(100%) } }
+        @keyframes foliate-turn-out-top { to { transform: translateY(-100%) } }
+        @keyframes foliate-turn-in-left { from { transform: translateX(-100%) } }
+        @keyframes foliate-turn-in-right { from { transform: translateX(100%) } }
+        @keyframes foliate-turn-in-top { from { transform: translateY(-100%) } }
+    `
+    document.head.append(style)
+}
+
 // collapsed range doesn't return client rects sometimes (or always?)
 // try make get a non-collapsed range or element
 const uncollapse = range => {
@@ -441,6 +496,9 @@ export class Paginator extends HTMLElement {
     #anchor = 0 // anchor view to a fraction (0-1), Range, or Element
     #justAnchored = false
     #locked = false // while true, prevent any further navigation
+    // 覆盖翻页的并发令牌：快速连续翻页时旧 transition 被浏览器自动 skip，
+    // 仅令牌最新的一次允许做 cleanup，防止拆掉新一次动画的类
+    #vtToken = 0
     #styles
     #styleMap = new WeakMap()
     #mediaQuery = matchMedia('(prefers-color-scheme: dark)')
@@ -958,6 +1016,47 @@ export class Paginator extends HTMLElement {
                 ? ({ top, bottom }) => ({ left: top, right: bottom })
                 : f => f
     }
+    get #layeredTurn() {
+        return this.getAttribute('turn-style') === 'cover'
+            && !this.scrolled
+            && typeof document.startViewTransition === 'function'
+            ? 'cover' : null
+    }
+    // 覆盖翻页：startViewTransition 先拍旧页快照，回调内瞬时跳到新页，
+    // 之后旧页快照作为不透明卡片在新页之上滑出（forward），
+    // 或新页快照滑入盖住旧页（backward）。页面本身是分栏大容器的一片切片，
+    // 无法作为 DOM 层移动，只能靠快照分层
+    #viewTransitionTurn(offset, reason) {
+        const pos = this.containerPosition
+        const forward = this.#vertical
+            ? offset > pos
+            : this.#rtl ? offset < pos : offset > pos
+        const side = this.#vertical ? 'top' : this.#rtl ? 'right' : 'left'
+        const classes = ['foliate-vt', 'foliate-vt-cover',
+            forward ? 'foliate-vt-forward' : 'foliate-vt-backward', `foliate-vt-${side}`]
+        // named 伪元素树从文档根部解析：沿 shadow host 上溯，把
+        // view-transition-name 设到最外层宿主（foliate-view）上
+        let namedHost = this
+        while (namedHost.getRootNode() instanceof ShadowRoot)
+            namedHost = namedHost.getRootNode().host
+        injectViewTransitionStyles()
+        namedHost.style.viewTransitionName = 'foliate-turn'
+        const html = document.documentElement
+        html.classList.add(...classes)
+        const token = ++this.#vtToken
+        const cleanup = () => {
+            if (this.#vtToken !== token) return
+            html.classList.remove(...classes)
+            namedHost.style.viewTransitionName = ''
+        }
+        const transition = document.startViewTransition(() => {
+            this.containerPosition = offset
+            this.#scrollBounds = [offset, this.atStart ? 0 : this.size, this.atEnd ? 0 : this.size]
+            this.#afterScroll(reason)
+        })
+        transition.finished.finally(cleanup)
+        return transition.finished.then(() => {})
+    }
     async #scrollToRect(rect, reason) {
         if (this.scrolled) {
             const offset = this.#getRectMapper()(rect).left - this.#margin
@@ -975,13 +1074,16 @@ export class Paginator extends HTMLElement {
         }
         // FIXME: vertical-rl only, not -lr
         if (this.scrolled && this.#vertical) offset = -offset
-        if ((reason === 'snap' || smooth) && this.hasAttribute('animated')) return animate(
-            this.containerPosition, offset, 300, easeOutQuad,
-            x => this.containerPosition = x,
-        ).then(() => {
-            this.#scrollBounds = [offset, this.atStart ? 0 : size, this.atEnd ? 0 : size]
-            this.#afterScroll(reason)
-        })
+        if ((reason === 'snap' || smooth) && this.hasAttribute('animated')) {
+            if (this.#layeredTurn) return this.#viewTransitionTurn(offset, reason)
+            return animate(
+                this.containerPosition, offset, 300, easeOutQuad,
+                x => this.containerPosition = x,
+            ).then(() => {
+                this.#scrollBounds = [offset, this.atStart ? 0 : size, this.atEnd ? 0 : size]
+                this.#afterScroll(reason)
+            })
+        }
         else {
             this.containerPosition = offset
             this.#scrollBounds = [offset, this.atStart ? 0 : size, this.atEnd ? 0 : size]

@@ -699,6 +699,19 @@ export const SettingsSheet = ({
                 onChange={v => update({ flow: v })}
               />
             </div>
+            {settings.flow === 'paginated' && (
+              <div className="setting-group">
+                <div className="setting-label"><span>翻页动画</span></div>
+                <Segmented
+                  options={[
+                    { value: 'slide' as const, label: '平移' },
+                    { value: 'cover' as const, label: '覆盖' },
+                  ]}
+                  value={settings.turnStyle}
+                  onChange={v => update({ turnStyle: v })}
+                />
+              </div>
+            )}
             <ToggleRow title="禁用点击动画" sub="开启后点击翻页立即切换，无过渡动画"
               on={!settings.tapAnimated} onChange={v => update({ tapAnimated: !v })} />
             <ToggleRow title="左侧点击翻下一页" sub="左右两侧点击均翻下一页，仅滑动翻上一页"

@@ -96,6 +96,9 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   const theme = resolveTheme(settings)
   const scrolled = settings.flow === 'scrolled'
   scrolledRef.current = scrolled
+  // 覆盖翻页时页眉/页脚命名成独立 view-transition 组，随页面卡片一起滑动
+  // （paginator 注入的样式会对这三个组播放同一套滑动动画）
+  const vtSlideUi = !scrolled && settings.turnStyle === 'cover'
 
   // 扁平化 TOC，用于上一章/下一章导航
   const flatToc = useMemo(() => {
@@ -866,7 +869,10 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
 
       {ready && book && (
         <>
-          <div className="reader-head">
+          <div
+            className="reader-head"
+            style={vtSlideUi ? { viewTransitionName: 'foliate-turn-head' } : undefined}
+          >
             <span className="reader-head-title">{chapter || book.title}</span>
             {secPage && <span className="reader-head-pages">{secPage.cur}/{secPage.total}</span>}
             <div
@@ -874,7 +880,10 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
               style={{ height: pullDist > 0 ? Math.min(pullDist, 110) : hasMark ? 22 : 0 }}
             />
           </div>
-          <div className="reader-foot">
+          <div
+            className="reader-foot"
+            style={vtSlideUi ? { viewTransitionName: 'foliate-turn-foot' } : undefined}
+          >
             <span className="reader-foot-pages">
               {bookPage ? `${bookPage.cur}/${bookPage.total}` : `${Math.round(percent * 100)}%`}
             </span>
@@ -1112,5 +1121,10 @@ function applyRendererSettings(
   document.documentElement.style.setProperty('--foot-band', `${marginBottomPx}px`)
   if (settings.animated) r.setAttribute('animated', '')
   else r.removeAttribute('animated')
+  // 覆盖翻页仅在分页模式生效（滚动模式无翻页动画）；滑动卡片快照的透明区域
+  // 由 --foliate-vt-bg 填充，随主题底色走
+  if (settings.flow === 'paginated' && settings.turnStyle === 'cover') r.setAttribute('turn-style', 'cover')
+  else r.removeAttribute('turn-style')
+  document.documentElement.style.setProperty('--foliate-vt-bg', resolveTheme(settings).bg)
   r.setStyles?.(buildReaderCss(settings, fonts))
 }

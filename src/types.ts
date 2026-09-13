@@ -75,6 +75,8 @@ export interface ReaderSettings {
   followSystemBrightness: boolean
   flow: Flow
   animated: boolean
+  /** 翻页动画风格：slide = 平移，cover = 覆盖（旧页快照滑出/新页快照滑入，仅分页模式生效） */
+  turnStyle: 'slide' | 'cover'
   tapTurn: boolean
   /** 是否禁用点击翻页动画（true = 点击立即切换，无过渡动画） */
   tapAnimated: boolean
