@@ -1394,16 +1394,21 @@ export class Paginator extends HTMLElement {
             && absDx >= absDy * LAYERED_FALLBACK_DOMINANCE
         if (!edgeClaim && !earlyCenterClaim && !fallbackClaim) return
 
-        // 沿前进方向的手指行程决定快照哪一页；到书界则只认领不翻页
+        // 沿前进方向的手指行程决定快照哪一页。foliate 给每章条带首尾各垫了
+        // 一个空白衬垫列（正文列是 1..pages-2）：目标列一旦落在衬垫列
+        // （跨章/书界），偏移会钳在空白页上并卡死——此时只认领不拖拽，
+        // 松手交给 snap() 走 #goTo 跨章（Readest 的 renderedPage 越界保护同款）
         const along = this.#rtl ? -state.dx : state.dx
         const forward = along > 0
-        if (forward ? this.atEnd : this.atStart) {
-            state.layeredGesture = 'claimed'
-            return
-        }
         const step = this.#rtl ? -this.size : this.size
         const startPosition = this.containerPosition
         const offset = startPosition + (forward ? step : -step)
+        const targetCol = Math.round(Math.abs(offset) / this.size)
+        const inText = targetCol >= 1 && targetCol <= Math.max(1, this.pages - 2)
+        if (!inText || (forward ? this.atEnd : this.atStart)) {
+            state.layeredGesture = 'claimed'
+            return
+        }
         let turnRoot
         let transition
         try {
