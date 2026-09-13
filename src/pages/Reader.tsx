@@ -96,9 +96,46 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   const theme = resolveTheme(settings)
   const scrolled = settings.flow === 'scrolled'
   scrolledRef.current = scrolled
-  // 覆盖/仿真翻页时页眉/页脚命名成独立 view-transition 组，随页面卡片一起翻动
-  // （paginator 注入的样式会对这三个组播放同一套翻页动画）
-  const vtSlideUi = !scrolled && settings.turnStyle !== 'slide'
+  // 覆盖/仿真翻页：页眉/页脚命名成独立 view-transition 组，随页面卡片一起翻动
+  // （paginator 注入的样式会对这三个组播放同一套翻页动画）。
+  // 滑动翻页不走快照（无法从拖拽中途无缝续接），改由下方双拷贝实时跟随
+  const vtTurnUi = !scrolled && settings.turnStyle !== 'slide'
+  // 滑动翻页：页眉/页脚实时跟随正文平移（拖拽逐帧、松手续接动画逐帧都触发 scroll）
+  const isSlideTurn = ready && !!book && !scrolled && settings.turnStyle === 'slide'
+  const slideHeadA = useRef<HTMLDivElement>(null)
+  const slideHeadB = useRef<HTMLDivElement>(null)
+  const slideFootA = useRef<HTMLDivElement>(null)
+  const slideFootB = useRef<HTMLDivElement>(null)
+
+  // 滑动翻页的页眉/页脚跟随：监听 renderer 的 scroll，按容器平移量同步驱动
+  // 两份拷贝的 transform——A 份是当前页（静止时停在 0，随翻页滑出），
+  // B 份是相邻页（停在 ±size，随翻页滑入）；页码在落定后由 relocate 统一更新
+  useEffect(() => {
+    const r = view?.renderer
+    if (!isSlideTurn || !r) return
+    const update = () => {
+      const size = r.size
+      if (!size) return
+      const pos = r.containerPosition
+      // 当前列的视口偏移 = 列基准位置 - 滚动位置；正退负进对 RTL 同样成立
+      // （RTL 滚动坐标为负，next 页向右退出）。竖排上下平移
+      const k = Math.floor(pos / size)
+      const xA = k * size - pos
+      const xB = xA + size
+      const vertical = r.sideProp === 'height'
+      const set = (el: HTMLElement | null, x: number) => {
+        if (!el) return
+        el.style.transform = vertical ? `translate3d(0,${x}px,0)` : `translate3d(${x}px,0,0)`
+      }
+      set(slideHeadA.current, xA)
+      set(slideHeadB.current, xB)
+      set(slideFootA.current, xA)
+      set(slideFootB.current, xB)
+    }
+    update()
+    r.addEventListener('scroll', update)
+    return () => r.removeEventListener('scroll', update)
+  }, [isSlideTurn, view])
 
   // 扁平化 TOC，用于上一章/下一章导航
   const flatToc = useMemo(() => {
@@ -867,27 +904,56 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
         </div>
       )}
 
-      {ready && book && (
-        <>
-          <div
-            className="reader-head"
-            style={vtSlideUi ? { viewTransitionName: 'foliate-turn-head' } : undefined}
-          >
-            <span className="reader-head-title">{chapter || book.title}</span>
-            {secPage && <span className="reader-head-pages">{secPage.cur}/{secPage.total}</span>}
-            <div
-              className={`pull-ribbon ${hasMark || pullDist > 80 ? 'ready' : ''} ${pullDragging ? 'dragging' : ''}`}
-              style={{ height: pullDist > 0 ? Math.min(pullDist, 110) : hasMark ? 22 : 0 }}
-            />
-          </div>
-          <div
-            className="reader-foot"
-            style={vtSlideUi ? { viewTransitionName: 'foliate-turn-foot' } : undefined}
-          >
-            <span className="reader-foot-pages">
-              {bookPage ? `${bookPage.cur}/${bookPage.total}` : `${Math.round(percent * 100)}%`}
-            </span>
-          </div>
+          {ready && book && (
+            <>
+              {isSlideTurn ? (
+                <>
+                  <div className="reader-head" ref={slideHeadA}>
+                    <span className="reader-head-title">{chapter || book.title}</span>
+                    {secPage && <span className="reader-head-pages">{secPage.cur}/{secPage.total}</span>}
+                    <div
+                      className={`pull-ribbon ${hasMark || pullDist > 80 ? 'ready' : ''} ${pullDragging ? 'dragging' : ''}`}
+                      style={{ height: pullDist > 0 ? Math.min(pullDist, 110) : hasMark ? 22 : 0 }}
+                    />
+                  </div>
+                  <div className="reader-head" ref={slideHeadB}>
+                    <span className="reader-head-title">{chapter || book.title}</span>
+                    {secPage && <span className="reader-head-pages">{secPage.cur}/{secPage.total}</span>}
+                  </div>
+                  <div className="reader-foot" ref={slideFootA}>
+                    <span className="reader-foot-pages">
+                      {bookPage ? `${bookPage.cur}/${bookPage.total}` : `${Math.round(percent * 100)}%`}
+                    </span>
+                  </div>
+                  <div className="reader-foot" ref={slideFootB}>
+                    <span className="reader-foot-pages">
+                      {bookPage ? `${bookPage.cur}/${bookPage.total}` : `${Math.round(percent * 100)}%`}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div
+                    className="reader-head"
+                    style={vtTurnUi ? { viewTransitionName: 'foliate-turn-head' } : undefined}
+                  >
+                    <span className="reader-head-title">{chapter || book.title}</span>
+                    {secPage && <span className="reader-head-pages">{secPage.cur}/{secPage.total}</span>}
+                    <div
+                      className={`pull-ribbon ${hasMark || pullDist > 80 ? 'ready' : ''} ${pullDragging ? 'dragging' : ''}`}
+                      style={{ height: pullDist > 0 ? Math.min(pullDist, 110) : hasMark ? 22 : 0 }}
+                    />
+                  </div>
+                  <div
+                    className="reader-foot"
+                    style={vtTurnUi ? { viewTransitionName: 'foliate-turn-foot' } : undefined}
+                  >
+                    <span className="reader-foot-pages">
+                      {bookPage ? `${bookPage.cur}/${bookPage.total}` : `${Math.round(percent * 100)}%`}
+                    </span>
+                  </div>
+                </>
+              )}
 
           {!searchOpen && (
             <div className="reader-topbar">
@@ -1121,9 +1187,9 @@ function applyRendererSettings(
   document.documentElement.style.setProperty('--foot-band', `${marginBottomPx}px`)
   if (settings.animated) r.setAttribute('animated', '')
   else r.removeAttribute('animated')
-  // 覆盖翻页仅在分页模式生效（滚动模式无翻页动画）；滑动卡片快照的透明区域
-  // 由 --foliate-vt-bg 填充，随主题底色走
-  if (settings.flow === 'paginated' && settings.turnStyle !== 'slide') r.setAttribute('turn-style', settings.turnStyle)
+  // 翻页动画仅在分页模式生效（滚动模式无翻页动画）；slide 值仅作模式标记，
+  // paginator 对 slide 不走快照分层，页眉/页脚跟随由组件内的 scroll 监听驱动
+  if (settings.flow === 'paginated') r.setAttribute('turn-style', settings.turnStyle)
   else r.removeAttribute('turn-style')
   document.documentElement.style.setProperty('--foliate-vt-bg', resolveTheme(settings).bg)
   r.setStyles?.(buildReaderCss(settings, fonts))

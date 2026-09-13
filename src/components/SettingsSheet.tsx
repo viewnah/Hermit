@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useSettings, THEMES, FONT_PRESETS, resolveTheme, BRIGHTNESS_MIN, BRIGHTNESS_MAX } from '../store/settings'
-import { Sheet, SliderRow, Segmented, ToggleRow, toast, confirmDialog } from './ui'
+import { Sheet, SliderRow, ToggleRow, toast, confirmDialog } from './ui'
 import {
   deleteFont, deleteWallpaper, getFontAssets, getWallpaperAssets,
   importFontFile, importWallpaperFile, loadAssets,
 } from '../lib/assetService'
 import { SyncPanel } from './SyncPanel'
-import type { Flow, CustomTheme } from '../types'
+import type { CustomTheme } from '../types'
 
 const TAB_TITLES: Record<string, string> = {
   type: '排版',
@@ -60,6 +60,50 @@ const IconBrightness = () => (
     <path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" />
     <path d="M2 12h2" /><path d="M20 12h2" />
     <path d="m6.34 17.66-1.41 1.41" /><path d="m19.07 4.93-1.41 1.41" />
+  </svg>
+)
+
+/* 翻页方式示意图（卡片选择器）：仿真 = 卷角，滑动 = 双页同移，滚动 = 竖向双箭头，覆盖 = 新页盖旧页 */
+const AnimSlide = () => (
+  <svg width="44" height="52" viewBox="0 0 44 52" fill="none" stroke="currentColor"
+    strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3.75" y="5.75" width="16.5" height="30.5" rx="2.5"
+      fill="currentColor" fillOpacity="0.08" strokeOpacity="0.4" />
+    <rect x="23.75" y="5.75" width="16.5" height="30.5" rx="2.5" fill="currentColor" fillOpacity="0.16" />
+    <path d="M6.5 45.5h31" />
+    <path d="m9.5 42.5-3 3 3 3" />
+    <path d="m34.5 42.5 3 3-3 3" />
+  </svg>
+)
+
+const AnimScroll = () => (
+  <svg width="44" height="52" viewBox="0 0 44 52" fill="none" stroke="currentColor"
+    strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="6.75" y="5.75" width="16.5" height="30.5" rx="2.5" fill="currentColor" fillOpacity="0.12" />
+    <path d="M34.5 12v22" />
+    <path d="m31.5 15 3-3 3 3" />
+    <path d="m31.5 31 3 3 3-3" />
+  </svg>
+)
+
+const AnimCover = () => (
+  <svg width="44" height="52" viewBox="0 0 44 52" fill="none" stroke="currentColor"
+    strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3.75" y="5.75" width="16.5" height="30.5" rx="2.5"
+      fill="currentColor" fillOpacity="0.08" strokeOpacity="0.4" />
+    {/* 上层新页用卡片底色填充，视觉上盖住旧页 */}
+    <rect x="15.75" y="5.75" width="16.5" height="30.5" rx="2.5" fill="var(--surface-2)" />
+    <path d="M11 45.5h27" />
+    <path d="m35 42.5 3 3-3 3" />
+  </svg>
+)
+
+const AnimCurl = () => (
+  <svg width="44" height="52" viewBox="0 0 44 52" fill="none" stroke="currentColor"
+    strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9.75 5.75h24.5v20c-7.25 1.5-11.75 7-13.75 20h-10.75z" />
+    <path d="M34.25 25.75c-7.25 1.5-11.75 7-13.75 20 8.5-2.25 13-9.75 13.75-20z"
+      fill="currentColor" fillOpacity="0.14" />
   </svg>
 )
 
@@ -388,6 +432,8 @@ export const SettingsSheet = ({
   const wallInputRef = useRef<HTMLInputElement>(null)
 
   const theme = resolveTheme(settings)
+  // 四选一的翻页方式：滚动模式独立成项，分页模式取翻页动画风格
+  const pageMode = settings.flow === 'scrolled' ? 'scrolled' : settings.turnStyle
 
   useEffect(() => {
     if (!open) return
@@ -690,29 +736,39 @@ export const SettingsSheet = ({
           <>
             <div className="setting-group">
               <div className="setting-label"><span>翻页方式</span></div>
-              <Segmented
-                options={[
-                  { value: 'paginated' as Flow, label: '左右翻页' },
-                  { value: 'scrolled' as Flow, label: '上下滚动' },
-                ]}
-                value={settings.flow}
-                onChange={v => update({ flow: v })}
-              />
-            </div>
-            {settings.flow === 'paginated' && (
-              <div className="setting-group">
-                <div className="setting-label"><span>翻页动画</span></div>
-                <Segmented
-                  options={[
-                    { value: 'slide' as const, label: '平移' },
-                    { value: 'cover' as const, label: '覆盖' },
-                    { value: 'curl' as const, label: '仿真' },
-                  ]}
-                  value={settings.turnStyle}
-                  onChange={v => update({ turnStyle: v })}
-                />
+              {/* 翻页方式与翻页动画合并为一个四选一：
+                  上下滚动写 flow = scrolled，其余三项写 flow = paginated + 对应 turnStyle */}
+              <div className="anim-grid">
+                <button
+                  className={`anim-card${pageMode === 'curl' ? ' selected' : ''}`}
+                  onClick={() => update({ flow: 'paginated', turnStyle: 'curl' })}
+                >
+                  <AnimCurl />
+                  <span className="name">仿真翻页</span>
+                </button>
+                <button
+                  className={`anim-card${pageMode === 'slide' ? ' selected' : ''}`}
+                  onClick={() => update({ flow: 'paginated', turnStyle: 'slide' })}
+                >
+                  <AnimSlide />
+                  <span className="name">左右滑动</span>
+                </button>
+                <button
+                  className={`anim-card${pageMode === 'scrolled' ? ' selected' : ''}`}
+                  onClick={() => update({ flow: 'scrolled' })}
+                >
+                  <AnimScroll />
+                  <span className="name">上下滚动</span>
+                </button>
+                <button
+                  className={`anim-card${pageMode === 'cover' ? ' selected' : ''}`}
+                  onClick={() => update({ flow: 'paginated', turnStyle: 'cover' })}
+                >
+                  <AnimCover />
+                  <span className="name">覆盖翻页</span>
+                </button>
               </div>
-            )}
+            </div>
             <ToggleRow title="禁用点击动画" sub="开启后点击翻页立即切换，无过渡动画"
               on={!settings.tapAnimated} onChange={v => update({ tapAnimated: !v })} />
             <ToggleRow title="左侧点击翻下一页" sub="左右两侧点击均翻下一页，仅滑动翻上一页"

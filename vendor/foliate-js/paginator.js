@@ -1047,6 +1047,8 @@ export class Paginator extends HTMLElement {
     }
     get #layeredTurn() {
         const style = this.getAttribute('turn-style')
+        // slide 不走分层快照：滑动是跟手的连续平移，快照无法从拖拽中途的位置
+        // 无缝续接；页眉/页脚的跟随由宿主监听 scroll 实时驱动
         return (style === 'cover' || style === 'curl')
             && !this.scrolled
             && typeof document.startViewTransition === 'function'

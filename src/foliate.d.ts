@@ -41,6 +41,12 @@ declare module 'foliate-js/view.js' {
      * 需经此获取；无已加载视图时返回空数组）
      */
     getContents(): { index: number; doc: Document | null }[]
+    /** 容器当前平移/滚动位置（可写；RTL 下为负值）。逐帧变化时派发 scroll 事件 */
+    containerPosition: number
+    /** 单页/单屏尺寸（横排取宽、竖排取高，随排版实时变化） */
+    readonly size: number
+    /** 主轴尺寸属性名：横排 'width'、竖排 'height' */
+    readonly sideProp: 'width' | 'height'
   }
 
   export interface FoliateSearchExcerpt {

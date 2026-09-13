@@ -1067,6 +1067,32 @@ input, select {
   box-shadow: 0 2px 8px rgba(43, 38, 32, 0.12);
 }
 
+/* 翻页方式：示意卡片选择（四张等宽，选中态朱砂描边，同 font-card 惯例） */
+.anim-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.anim-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 4px 10px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--ink-soft);
+  transition: transform 0.12s ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.anim-card:active { transform: scale(0.95); }
+.anim-card.selected { outline: 2px solid var(--accent); color: var(--ink); }
+.anim-card .name {
+  font-family: var(--serif);
+  font-size: 13px;
+}
+
 .swatch-row {
   display: flex;
   gap: 12px;
