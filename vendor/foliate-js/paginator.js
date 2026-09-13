@@ -90,6 +90,67 @@ const injectViewTransitionStyles = () => {
         ${vtTurnGroupCss('foliate-turn', 'box-shadow: 0 0 24px rgba(0, 0, 0, .35);')}
         ${vtTurnGroupCss('foliate-turn-head', '')}
         ${vtTurnGroupCss('foliate-turn-foot', '')}
+        /* 覆盖拖拽：按住期间旧层（页面+页眉页脚）跟手平移，
+           新层（下层页与其页眉页脚）保持静止；松手后提交滑出或回弹。
+           无限慢动画让空 update 的 VT 在整个拖拽期间保持驻留。
+           位移变量由 #updateCoverDrag 按平移量与方向预先算好 */
+        .foliate-vt-drag::view-transition-group(*) {
+            animation: foliate-vt-hold 1e6s linear 1;
+        }
+        @keyframes foliate-vt-hold {
+            from { opacity: 0.99999 }
+            to { opacity: 1 }
+        }
+        .foliate-vt-drag::view-transition-old(foliate-turn),
+        .foliate-vt-drag::view-transition-old(foliate-turn-head),
+        .foliate-vt-drag::view-transition-old(foliate-turn-foot) {
+            animation: none;
+            transform: translate(var(--cover-old-x, 0px), var(--cover-old-y, 0px));
+            z-index: 1;
+        }
+        .foliate-vt-drag::view-transition-new(foliate-turn),
+        .foliate-vt-drag::view-transition-new(foliate-turn-head),
+        .foliate-vt-drag::view-transition-new(foliate-turn-foot) {
+            animation: none;
+            transform: translate(var(--cover-new-x, 0px), var(--cover-new-y, 0px));
+        }
+        /* 松手提交（前进）：旧层从当前位置继续滑出，新层原位露出 */
+        .foliate-vt-drag.foliate-cover-commit-forward::view-transition-old(foliate-turn),
+        .foliate-vt-drag.foliate-cover-commit-forward::view-transition-old(foliate-turn-head),
+        .foliate-vt-drag.foliate-cover-commit-forward::view-transition-old(foliate-turn-foot) {
+            animation: foliate-cover-exit-forward 260ms cubic-bezier(.25,.46,.45,.94) both;
+        }
+        /* 松手提交（后退）：旧层向右滑出，露出左侧新层 */
+        .foliate-vt-drag.foliate-cover-commit-backward::view-transition-old(foliate-turn),
+        .foliate-vt-drag.foliate-cover-commit-backward::view-transition-old(foliate-turn-head),
+        .foliate-vt-drag.foliate-cover-commit-backward::view-transition-old(foliate-turn-foot) {
+            animation: foliate-cover-exit-backward 260ms cubic-bezier(.25,.46,.45,.94) both;
+        }
+        @keyframes foliate-cover-exit-forward {
+            from { transform: translate(var(--cover-old-x, 0px), var(--cover-old-y, 0px)); }
+            to { transform: translate(-100%, 0); }
+        }
+        @keyframes foliate-cover-exit-backward {
+            from { transform: translate(var(--cover-old-x, 0px), var(--cover-old-y, 0px)); }
+            to { transform: translate(100%, 0); }
+        }
+        /* 松手取消：旧层滑回原位，新层滑出屏幕 */
+        .foliate-vt-drag.foliate-cover-cancel::view-transition-old(foliate-turn),
+        .foliate-vt-drag.foliate-cover-cancel::view-transition-old(foliate-turn-head),
+        .foliate-vt-drag.foliate-cover-cancel::view-transition-old(foliate-turn-foot) {
+            animation: foliate-cover-back 220ms ease both;
+        }
+        .foliate-vt-drag.foliate-cover-cancel::view-transition-new(foliate-turn) {
+            animation: foliate-cover-new-return 220ms ease both;
+        }
+        @keyframes foliate-cover-back {
+            from { transform: translate(var(--cover-old-x, 0px), var(--cover-old-y, 0px)); }
+            to { transform: none; }
+        }
+        @keyframes foliate-cover-new-return {
+            from { transform: translate(var(--cover-new-x, 0px), var(--cover-new-y, 0px)); }
+            to { transform: none; }
+        }
         /* 折痕起点：默认外侧角（eat-right，108% 108%）；后退/RTL 从书脊侧角扫过 */
         .foliate-vt-curl.foliate-vt-eat-left { --foliate-fold-x: -8%; }
         /* 注册成 <percentage> 才能在 keyframes 里插值，驱动 mask 的渐变断点逐帧重绘 */
@@ -528,6 +589,9 @@ export class Paginator extends HTMLElement {
     // 覆盖翻页的并发令牌：快速连续翻页时旧 transition 被浏览器自动 skip，
     // 仅令牌最新的一次允许做 cleanup，防止拆掉新一次动画的类
     #vtToken = 0
+    // 覆盖翻页的手指拖拽会话：按住期间用挂起的 VT 呈现「旧页跟手滑出、
+    // 新层静止」的真覆盖样式，松手后提交滑出或回弹
+    #coverDrag = null
     #styles
     #styleMap = new WeakMap()
     #mediaQuery = matchMedia('(prefers-color-scheme: dark)')
@@ -972,6 +1036,11 @@ export class Paginator extends HTMLElement {
             t: e.timeStamp,
             vx: 0, xy: 0,
         }
+        // 覆盖翻页：按住即进入拖拽会话（挂起 VT 呈现真覆盖：旧层跟手、新层静止）
+        if (e.touches.length === 1 && this.#layeredTurn === 'cover' &&
+            !this.#coverDrag && typeof document.startViewTransition === 'function') {
+            this.#beginCoverDrag()
+        }
     }
     #onTouchMove(e) {
         const state = this.#touchState
@@ -1003,10 +1072,16 @@ export class Paginator extends HTMLElement {
         } else if (Math.abs(dy) > Math.abs(dx)) {
             this.scrollBy(0, dy)
         }
+        this.#updateCoverDrag()
     }
     #onTouchEnd() {
         this.#touchScrolled = false
         if (this.scrolled) return
+        // 覆盖拖拽会话：按拖距/速度提交或回弹，接管常规 snap 流程
+        if (this.#coverDrag) {
+            this.#finishCoverDrag(this.#touchState)
+            return
+        }
         const state = this.#touchState
         // A touch with negligible total displacement is a tap: the host app
         // handles taps on pointerup (which fires before touchend) and may have
@@ -1026,6 +1101,125 @@ export class Paginator extends HTMLElement {
                 else this.snap(state.vx, state.vy)
             }
         })
+    }
+
+    // view-transition-name 需要挂在最外层宿主（沿 shadow root 上溯）
+    #vtNamedHost() {
+        let host = this
+        while (host.getRootNode() instanceof ShadowRoot) host = host.getRootNode().host
+        return host
+    }
+
+    // 覆盖拖拽开始：空 update 的 VT + 无限慢保持动画，让旧页快照在整个
+    // 拖拽期间驻留在最上层；此后每帧只更新 --cover-old-*/--cover-new-*
+    #beginCoverDrag() {
+        const host = this.#vtNamedHost()
+        host.style.viewTransitionName = 'foliate-turn'
+        injectViewTransitionStyles()
+        const html = document.documentElement
+        html.classList.add('foliate-vt', 'foliate-vt-drag')
+        html.style.setProperty('--cover-old-x', '0px')
+        html.style.setProperty('--cover-old-y', '0px')
+        html.style.setProperty('--cover-new-x', '0px')
+        html.style.setProperty('--cover-new-y', '0px')
+        const vt = document.startViewTransition(() => {})
+        this.#coverDrag = { vt, startPos: this.containerPosition, host }
+    }
+
+    #updateCoverDrag() {
+        const drag = this.#coverDrag
+        if (!drag) return
+        const html = document.documentElement
+        // 平移量 p（+前进）；旧层跟手平移 -p，
+        // 新层静止在落定位置：前进时（下层页从右侧退回 [0,size]）为 p-size，
+        // 后退时（下层页停在左侧 [-size,0]）为 p
+        const p = this.containerPosition - drag.startPos
+        if (this.#vertical) {
+            html.style.setProperty('--cover-old-x', '0px')
+            html.style.setProperty('--cover-old-y', -p + 'px')
+            html.style.setProperty('--cover-new-x', '0px')
+            html.style.setProperty('--cover-new-y', (p >= 0 ? p - this.size : p) + 'px')
+        } else {
+            html.style.setProperty('--cover-old-x', -p + 'px')
+            html.style.setProperty('--cover-old-y', '0px')
+            html.style.setProperty('--cover-new-x', (p >= 0 ? p - this.size : p) + 'px')
+            html.style.setProperty('--cover-new-y', '0px')
+        }
+    }
+
+    // 覆盖拖拽结束：拖距过半或同向快甩 → 提交（底层跳到目标页，旧层滑出
+    // 剩余距离）；否则回弹（旧层滑回、新层滑出，底层退回起点）
+    #finishCoverDrag(state) {
+        const drag = this.#coverDrag
+        const html = document.documentElement
+        const size = this.size
+        // dx 与 #updateCoverDrag 同符号：正 = 向前拖（下一页），负 = 向后拖
+        const dx = this.containerPosition - drag.startPos
+        const isTap = state &&
+            Math.abs((state.x ?? 0) - (state.sx ?? 0)) < 24 &&
+            Math.abs((state.y ?? 0) - (state.sy ?? 0)) < 24
+        const forward = dx > size / 2 || state.vx > 0.5
+        const backward = dx < -size / 2 || state.vx < -0.5
+        const canForward = forward && !this.atEnd
+        const canBackward = backward && !this.atStart
+        const cleanup = () => {
+            if (cleaned) return
+            cleaned = true
+            html.classList.remove('foliate-vt', 'foliate-vt-drag',
+                'foliate-cover-commit-forward', 'foliate-cover-commit-backward', 'foliate-cover-cancel')
+            html.style.removeProperty('--cover-old-x')
+            html.style.removeProperty('--cover-old-y')
+            html.style.removeProperty('--cover-new-x')
+            html.style.removeProperty('--cover-new-y')
+            drag.host.style.viewTransitionName = ''
+            if (this.#coverDrag === drag) this.#coverDrag = null
+        }
+        let cleaned = false
+        if (isTap || (!canForward && !canBackward)) {
+            // 未拖动/不到位/到边界：快照与当前画面一致，直接结束
+            drag.vt.skipTransition()
+            cleanup()
+            return
+        }
+        if (isTap || (!canForward && !canBackward)) {
+            // 未拖动/不到位/到边界：快照与当前画面一致，直接结束
+            drag.vt.skipTransition()
+            cleanup()
+            return
+        }
+        const jumpTo = (pos, reason) => {
+            this.containerPosition = pos
+            this.#scrollBounds = [pos, this.atStart ? 0 : this.size, this.atEnd ? 0 : this.size]
+            this.#afterScroll(reason)
+        }
+        const step = this.#rtl ? -size : size
+        // 先排程清理（动画结束即可复位），再做底层跳转——
+        // 跳转触发的 relocate 若在宿主侧抛错，不能丢掉清理
+        setTimeout(cleanup, 320)
+        if (canForward) {
+            html.classList.add('foliate-cover-commit-forward')
+            // 底层跳到目标页（藏在旧层之下），relocate 让页码立即更新
+            try {
+                jumpTo(drag.startPos + step, 'page')
+            } catch (e) {
+                console.warn('cover drag commit relocate failed', e)
+            }
+        } else if (canBackward) {
+            html.classList.add('foliate-cover-commit-backward')
+            try {
+                jumpTo(drag.startPos - step, 'page')
+            } catch (e) {
+                console.warn('cover drag commit relocate failed', e)
+            }
+        } else {
+            html.classList.add('foliate-cover-cancel')
+            try {
+                jumpTo(drag.startPos, 'snap')
+            } catch (e) {
+                console.warn('cover drag cancel relocate failed', e)
+            }
+        }
+        drag.vt.finished.finally(cleanup)
     }
     // allows one to process rects as if they were LTR and horizontal
     #getRectMapper() {

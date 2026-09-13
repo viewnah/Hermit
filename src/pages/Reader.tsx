@@ -124,13 +124,22 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
         if (!el) return
         el.style.transform = vertical ? `translate3d(0,${x}px,0)` : `translate3d(${x}px,0,0)`
       }
-      // 当前列的视口偏移 = 列基准位置 - 滚动位置；正退负进对 RTL 同样成立
-      const k = Math.floor(pos / size)
-      const xA = k * size - pos
-      set(slideHeadA.current, xA)
-      set(slideHeadB.current, xA + size)
-      set(slideFootA.current, xA)
-      set(slideFootB.current, xA + size)
+      if (settings.turnStyle === 'slide') {
+        // 滑动：连续条带，两份拷贝贴住各自列的正文
+        const k = Math.floor(pos / size)
+        const xA = k * size - pos
+        set(slideHeadA.current, xA)
+        set(slideHeadB.current, xA + size)
+        set(slideFootA.current, xA)
+        set(slideFootB.current, xA + size)
+      } else {
+        // 覆盖/仿真：拷贝固定原位（= 下层新页的页眉页脚）；
+        // 拖拽与翻页动画的跟随由 paginator 的覆盖拖拽快照层负责
+        set(slideHeadA.current, 0)
+        set(slideHeadB.current, 0)
+        set(slideFootA.current, 0)
+        set(slideFootB.current, 0)
+      }
       // 页码实时跟随：renderer.page 越过半页即切换显示值，不等动画/落定事件。
       // 只处理 ±1 的单页翻动（跨章跳转的大变化交给 relocate 校准）；
       // secPage.cur 与 renderer.page 同为 1 基显示值，可直接使用
