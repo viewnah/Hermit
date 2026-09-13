@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import 'foliate-js/view.js'
 import type { FoliateRelocateDetail, FoliateSearchResult, FoliateView } from 'foliate-js/view.js'
 import { db } from '../db'
@@ -921,7 +921,9 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
           {ready && book && (
             <>
               {isSlideTurn ? (
-                <>
+                // key 区分两套节点：切换翻页模式时强制重建，
+                // 避免复用带残留 inline transform 的滑动拷贝节点（页眉会被移出屏幕）
+                <Fragment key="slide">
                   <div className="reader-head" ref={slideHeadA}>
                     <span className="reader-head-title">{chapter || book.title}</span>
                     {secPage && <span className="reader-head-pages">{secPage.cur}/{secPage.total}</span>}
@@ -944,9 +946,9 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
                       {bookPage ? `${bookPage.cur}/${bookPage.total}` : `${Math.round(percent * 100)}%`}
                     </span>
                   </div>
-                </>
+                </Fragment>
               ) : (
-                <>
+                <Fragment key="turnvt">
                   <div
                     className="reader-head"
                     style={vtTurnUi ? { viewTransitionName: 'foliate-turn-head' } : undefined}
@@ -966,7 +968,7 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
                       {bookPage ? `${bookPage.cur}/${bookPage.total}` : `${Math.round(percent * 100)}%`}
                     </span>
                   </div>
-                </>
+                </Fragment>
               )}
 
           {!searchOpen && (
