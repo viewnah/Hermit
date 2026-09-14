@@ -1072,13 +1072,22 @@ export class Paginator extends HTMLElement {
             this.containerPosition + delta))
     }
 
-    snap(vx, vy) {
+    // distance：本次手势的净位移（px，与 vx 同号）。分层翻页（覆盖/仿真/滑动）
+    // 下 touchmove 被快照拖拽分支独占，容器不再随手指滚动，落点只能靠速度投影
+    // 估算；而跨章/书界越界时只认领不拖拽（见 #layeredDragStart），慢速拖动
+    // 没有甩动速度，必须再把手势位移折算进落点，否则松手停在原页无法跨章
+    snap(vx, vy, distance = 0) {
         const velocity = this.#vertical ? vy : vx
         const [offset, a, b] = this.#scrollBounds
         const { start, end, pages, size } = this
         const min = Math.abs(offset) - a
         const max = Math.abs(offset) + b
+        const moved = Number.isFinite(distance) ? distance : 0
+        // 位移贡献钳在一页之内：与容器跟手滚动时的 scrollBounds 边界一致，
+        // 避免慢速大幅拖动一次跨过多页
+        const clamped = Math.max(-size, Math.min(size, moved))
         const d = velocity * (this.#rtl ? -size : size)
+            + clamped * (this.#rtl ? -1 : 1)
         const page = Math.floor(
             Math.max(min, Math.min(max, (start + end) / 2
                 + (isNaN(d) ? 0 : d))) / size)
@@ -1120,6 +1129,9 @@ export class Paginator extends HTMLElement {
             lastMovementTime: e.timeStamp,
             active: true,
             blocked,
+            // 容器是否已随手指滚动：非分层路径（竖向排版/降级）由 scrollBy 直接
+            // 平移容器，位置本身就反映了手势位移，收尾时不能再把手势位移叠加一次
+            scrolledContainer: false,
             layeredGesture: blocked ? 'rejected' : 'pending',
             layeredEdgeDirection: edgeDirection,
             layeredHorizontalDirection: 0,
@@ -1192,6 +1204,7 @@ export class Paginator extends HTMLElement {
         } else if (Math.abs(dy) > Math.abs(dx)) {
             this.scrollBy(0, dy)
         }
+        state.scrolledContainer = true
     }
     #onTouchEnd(e) {
         const state = this.#touchState
@@ -1222,6 +1235,24 @@ export class Paginator extends HTMLElement {
             releaseDy += state.y - releaseTouch.screenY
         }
         if (state) updateReleaseSample(state, releaseDx, e.timeStamp)
+
+        // 越界只认领不拖拽（跨章/书界，见 #layeredDragStart）：既没有拖拽会话
+        // 可结算，容器也从未随手指移动，snap 又只能在章内落点，于是慢速/中速
+        // 滑动永远跨不了章，只剩点击能翻章。此处按手势净位移直接走与点击翻页
+        // 相同的 #turnPage 路径，由它经 #goTo 完成跨章（书界处自行 no-op）
+        if (this.#layeredTurn && !this.#vtDrag
+            && state?.layeredGesture === 'claimed') {
+            // along 的符号约定与 #layeredDragStart 一致（已就地归一 RTL）
+            const along = this.#rtl ? -releaseDx : releaseDx
+            const cross = this.#rtl ? -releaseDy : releaseDy
+            const forward = along > 0
+            // 需横向占优且行程足够：轻点/微抖的残留位移不足以误翻章
+            if (Math.abs(along) >= Math.max(24, this.size * 0.12)
+                && Math.abs(along) > Math.abs(cross)) {
+                void this.#turnPage(forward ? 1 : -1)
+            }
+            return
+        }
 
         // 跟手拖拽会话在此结算：进度/速度决定提交还是回弹
         const drag = this.#vtDrag
@@ -1270,10 +1301,14 @@ export class Paginator extends HTMLElement {
         // XXX: Firefox seems to report scale as 1... sometimes...?
         // at this point I'm basically throwing `requestAnimationFrame` at
         // anything that doesn't work
+        // 分层翻页下容器没跟着手指走（快照擦洗或越界只认领），位移尚未体现在
+        // 位置里，需把手势净位移交给 snap 参与落点判定，否则慢速拖动不翻页
+        const gestureDistance = state && !state.scrolledContainer
+            ? (this.#vertical ? releaseDy : releaseDx) : 0
         requestAnimationFrame(() => {
             if (globalThis.visualViewport.scale === 1 && this.#touchState === state) {
                 if (isTap) this.#scrollToPage(this.page, null)
-                else this.snap(state.vx, state.vy)
+                else this.snap(state.vx, state.vy, gestureDistance)
             }
         })
     }
