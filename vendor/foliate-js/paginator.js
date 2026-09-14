@@ -92,20 +92,36 @@ const injectViewTransitionStyles = () => {
         .foliate-vt-slide.foliate-vt-backward.foliate-vt-right::view-transition-new(foliate-turn) {
             animation-name: foliate-turn-in-right;
         }
-        /* 仿真：透明圆盘从书外侧下角（eat 类切换起点）向外生长成折痕弧，
-           旧页沿弧线被"卷走"；两个方向都只动旧页，新页静止在下。
+        /* 仿真：卷页。旧页沿折痕弧被"卷走"，弧线扫过处同步画出
+           「卷起的页背」（浅色带）与卷页投在新页上的阴影（暗色带），
+           旧页边缘加接触阴影——双层平面快照做不了网格弯曲，
+           用这三层光影逼近真实卷页的立体感（多看/iBooks 式读感）。
            Chrome 不给活的 new 层画 mask、只画静态 old 快照，所以后退也编排
-           旧页从书脊侧退去，读感等同新页展开。6% 是卷起的软边渐变带 */
+           旧页从书脊侧退去，读感等同新页展开。页背/阴影带由同一个注册
+           属性 --foliate-fold 驱动，与折痕弧逐帧同步（拖拽擦洗同享） */
         .foliate-vt-curl::view-transition-old(foliate-turn) {
             z-index: 1;
             -webkit-mask-image: radial-gradient(circle at var(--foliate-fold-x, 108%) 108%,
                 transparent calc(var(--foliate-fold) - 6%), black var(--foliate-fold));
             mask-image: radial-gradient(circle at var(--foliate-fold-x, 108%) 108%,
                 transparent calc(var(--foliate-fold) - 6%), black var(--foliate-fold));
+            filter: drop-shadow(0 0 5px rgba(0, 0, 0, .14));
             animation: foliate-turn-curl-fold 450ms cubic-bezier(.3,.1,.4,1) both;
         }
         .foliate-vt-curl::view-transition-new(foliate-turn) {
-            animation: none;
+            background:
+                radial-gradient(circle at var(--foliate-fold-x, 108%) 108%,
+                    transparent calc(var(--foliate-fold) - 12%),
+                    rgba(255, 255, 255, .55) calc(var(--foliate-fold) - 8.5%),
+                    rgba(255, 255, 255, .22) calc(var(--foliate-fold) - 6%),
+                    rgba(255, 255, 255, 0) calc(var(--foliate-fold) - 4.5%)),
+                radial-gradient(circle at var(--foliate-fold-x, 108%) 108%,
+                    transparent calc(var(--foliate-fold) - 30%),
+                    rgba(0, 0, 0, .07) calc(var(--foliate-fold) - 20%),
+                    rgba(0, 0, 0, .13) calc(var(--foliate-fold) - 12%),
+                    rgba(0, 0, 0, 0) calc(var(--foliate-fold) - 5%)),
+                var(--foliate-vt-bg, Canvas);
+            animation: foliate-turn-curl-fold 450ms cubic-bezier(.3,.1,.4,1) both;
         }
         /* 手指跟手拖拽把位移直接映射到动画时间，必须线性；
            部分 Android WebView 暴露不了 UA 伪元素动画的 updateTiming，
