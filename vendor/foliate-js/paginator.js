@@ -49,6 +49,13 @@ const injectViewTransitionStyles = () => {
             background: var(--foliate-vt-bg, Canvas);
             mix-blend-mode: normal;
         }
+        /* 快照层挂在文档根下，不在宿主（.reader-root）的 filter 子树里：
+           宿主若整页套了亮度滤镜，翻页时快照会按原始亮度绘制，页面亮度
+           瞬间跳回原值。这里在快照组上补一份同样的滤镜，与底层活动内容
+           保持一致；--foliate-vt-filter 由宿主按当前亮度写到根元素 */
+        ::view-transition-group(foliate-turn) {
+            filter: var(--foliate-vt-filter, none);
+        }
         /* 覆盖：前进=旧页带阴影滑出露出静止新页，后退=新页滑入盖住旧页 */
         .foliate-vt-cover.foliate-vt-forward::view-transition-old(foliate-turn) {
             z-index: 1;

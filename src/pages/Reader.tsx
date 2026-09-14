@@ -836,6 +836,16 @@ export const Reader = ({ bookId, onBack }: { bookId: number; onBack: () => void 
   // 亮度：以 0.6 为基准（无滤镜），实际滤镜值 = 亮度 / 0.6，保证默认 60% 即原先 100% 效果
   const brightness = effectiveBrightness(settings, systemDark)
   const filterBrightness = brightness / BRIGHTNESS_BASE
+  // 翻页快照（::view-transition-*）挂在文档根下，不在本元素滤镜子树内：
+  // 只给 .reader-root 套滤镜的话，翻页瞬间快照会按原始亮度绘制，
+  // 整页亮度跳回原值（翻页闪烁）。把同一滤镜写到根元素变量，
+  // 由 paginator 注入的样式应用到 foliate-turn 快照组，两层亮度保持一致
+  useEffect(() => {
+    const root = document.documentElement
+    if (filterBrightness !== 1) root.style.setProperty('--foliate-vt-filter', `brightness(${filterBrightness})`)
+    else root.style.removeProperty('--foliate-vt-filter')
+    return () => { root.style.removeProperty('--foliate-vt-filter') }
+  }, [filterBrightness])
   return (
     <div
       ref={rootRef}
