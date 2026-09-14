@@ -29,3 +29,8 @@ src-tauri/gen/schemas/
 /*.epub
 # 演示截图
 demo-shots/
+
+# ---- 本地工作目录 / 工具缓存 ----
+.workbuddy/
+.zcode/
+.pi/
