@@ -66,6 +66,14 @@ input, select {
 }
 
 /* ---------- paper grain ---------- */
+/* 页面骨架：固定高度、只允许内部滚动列表滚动。
+   若不做成 flex 列容器，sticky 顶栏 + height:100% 的列表会相加超出视口，
+   使整个文档产生滚动量——内容不足一屏时也能被拖下去露出空白 */
+.grain {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 .grain::before {
   content: '';
   position: fixed;
@@ -188,7 +196,9 @@ input, select {
 .library-scroll {
   position: relative;
   z-index: 1;
-  height: 100%;
+  /* 撑满顶栏以下的剩余空间（不乘 height:100%，否则会抵出容器溢出） */
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 6px 20px calc(var(--safe-bottom) + 96px);
 }
