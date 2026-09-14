@@ -28,22 +28,9 @@ interface BookRow {
 }
 
 type Tab = 'shelf' | 'mine'
-type SortMode = 'recent' | 'added' | 'title'
-type Menu = 'sort' | 'more' | null
+type Menu = 'more' | null
 
-const SORTS: { id: SortMode; label: string }[] = [
-  { id: 'recent', label: '最近阅读' },
-  { id: 'added', label: '导入时间' },
-  { id: 'title', label: '书名' },
-]
-
-const TAB_TITLES: Record<Tab, string> = { shelf: '全部书籍', mine: '我的' }
-
-const SORT_KEY = 'clipreader.sort'
-const loadSort = (): SortMode => {
-  const saved = localStorage.getItem(SORT_KEY)
-  return SORTS.some(s => s.id === saved) ? saved as SortMode : 'recent'
-}
+const TAB_TITLES: Record<Tab, string> = { shelf: '书架', mine: '我的' }
 
 const formatPct = (v: number) => `${Math.round(v * 100)}%`
 
@@ -55,11 +42,6 @@ const IconSearch = () => (
 const IconMenu = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <line x1="4" y1="7" x2="20" y2="7" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="17" x2="20" y2="17" />
-  </svg>
-)
-const IconChevron = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="6 9 12 15 18 9" />
   </svg>
 )
 const IconPlus = () => (
@@ -101,22 +83,33 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
   const [importing, setImporting] = useState(false)
   const [tab, setTab] = useState<Tab>('shelf')
   const [query, setQuery] = useState('')
-  const [sort, setSort] = useState<SortMode>(loadSort)
+  const [searchOpen, setSearchOpen] = useState(false)
   const [menu, setMenu] = useState<Menu>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const coverUrls = useCoverUrls(rows, covers)
   const menuRef = useRef(menu)
   menuRef.current = menu
+  const searchRef = useRef(searchOpen)
+  searchRef.current = searchOpen
+
+  const closeSearch = () => {
+    setSearchOpen(false)
+    setQuery('')
+  }
 
   // 书库浏览子页面
   const [browseSource, setBrowseSource] = useState<LibrarySource | null>(null)
   // 书库卡片展开态（按 source.id 跟踪）
   const [libExpandedId, setLibExpandedId] = useState<string | null>(null)
 
-  // Android 返回键：书架上有弹出菜单时先关闭，否则交还原生（退到后台）
+  // Android 返回键：书架上有弹出菜单/搜索时先关闭，否则交还原生（退到后台）
   useEffect(() => pushBackHandler(() => {
     if (menuRef.current) {
       setMenu(null)
+      return true
+    }
+    if (searchRef.current) {
+      closeSearch()
       return true
     }
     return false
@@ -146,14 +139,9 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
       ? rows.filter(r => r.title.toLowerCase().includes(q) || r.author.toLowerCase().includes(q))
       : rows
     const sorted = [...matched]
-    if (sort === 'recent')
-      sorted.sort((a, b) => (b.lastReadAt ?? 0) - (a.lastReadAt ?? 0) || b.addedAt - a.addedAt)
-    else if (sort === 'added')
-      sorted.sort((a, b) => b.addedAt - a.addedAt)
-    else
-      sorted.sort((a, b) => a.title.localeCompare(b.title, 'zh'))
+    sorted.sort((a, b) => (b.lastReadAt ?? 0) - (a.lastReadAt ?? 0) || b.addedAt - a.addedAt)
     return sorted
-  }, [rows, query, sort])
+  }, [rows, query])
 
   const handleFiles = async (files: FileList | null) => {
     if (!files?.length) return
@@ -234,35 +222,36 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
       <div className="home-top">
         <div className="home-top-inner">
           <header className="home-header">
-            {tab === 'shelf' ? (
-              <button className="home-title" onClick={() => setMenu(menu === 'sort' ? null : 'sort')}>
-                {TAB_TITLES[tab]}
-                <span className="chevron"><IconChevron /></span>
-              </button>
-            ) : (
-              <div className="home-title mine-title">我的</div>
-            )}
+            <div className={`home-title${tab === 'mine' ? ' mine-title' : ''}`}>{TAB_TITLES[tab]}</div>
             {tab === 'mine' ? (
               <span className="mine-version">v0.1.2</span>
             ) : (
-              <button className="icon-btn" onClick={() => setMenu(menu === 'more' ? null : 'more')} aria-label="菜单">
-                <IconMenu />
-              </button>
+              <div className="home-actions">
+                <button
+                  className={`icon-btn${searchOpen ? ' active' : ''}`}
+                  onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
+                  aria-label="搜索"
+                >
+                  <IconSearch />
+                </button>
+                <button className="icon-btn" onClick={() => setMenu(menu === 'more' ? null : 'more')} aria-label="菜单">
+                  <IconMenu />
+                </button>
+              </div>
             )}
           </header>
 
-          {tab === 'shelf' && (
-            <div className="search-bar">
+          {tab === 'shelf' && searchOpen && (
+            <div className="search-pop">
               <IconSearch />
               <input
+                autoFocus
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 placeholder="搜索书籍"
                 enterKeyHint="search"
               />
-              {query && (
-                <button className="search-clear" onClick={() => setQuery('')} aria-label="清除">×</button>
-              )}
+              <button className="search-clear" onClick={closeSearch} aria-label="关闭">×</button>
             </div>
           )}
         </div>
@@ -288,7 +277,6 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
           <>
             <div className="shelf-meta">
               <span>{filtered.length}本书</span>
-              <span>{SORTS.find(s => s.id === sort)?.label}</span>
             </div>
             <div className="book-grid">
               {filtered.map((row, i) => (
@@ -364,26 +352,6 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
         </button>
       </nav>
 
-      {menu === 'sort' && (
-        <div className="menu-mask" onClick={() => setMenu(null)}>
-          <div className="popup-menu left" onClick={e => e.stopPropagation()}>
-            {SORTS.map(s => (
-              <button
-                key={s.id}
-                className={`menu-item ${sort === s.id ? 'active' : ''}`}
-                onClick={() => {
-                  setSort(s.id)
-                  localStorage.setItem(SORT_KEY, s.id)
-                  setMenu(null)
-                }}
-              >
-                {s.label}
-                {sort === s.id && <span className="check">✓</span>}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
       {menu === 'more' && (
         <div className="menu-mask" onClick={() => setMenu(null)}>
           <div className="popup-menu right" onClick={e => e.stopPropagation()}>

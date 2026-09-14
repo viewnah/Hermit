@@ -108,13 +108,15 @@ input, select {
   letter-spacing: 0.06em;
   color: var(--ink);
 }
-.home-title .chevron {
-  display: inline-flex;
-  color: var(--ink-faint);
-  margin-top: 3px;
+.home-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
+.home-actions .icon-btn.active { color: var(--accent); }
 
-.search-bar {
+/* 下拉搜索面板（从标题栏下方展开） */
+.search-pop {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -123,8 +125,9 @@ input, select {
   border-radius: 12px;
   background: var(--search-bg);
   color: var(--ink-faint);
+  animation: search-drop 0.18s ease both;
 }
-.search-bar input {
+.search-pop input {
   flex: 1;
   min-width: 0;
   border: none;
@@ -133,7 +136,11 @@ input, select {
   font-size: 15px;
   color: var(--ink);
 }
-.search-bar input::placeholder { color: var(--ink-faint); }
+.search-pop input::placeholder { color: var(--ink-faint); }
+@keyframes search-drop {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
 .search-clear {
   width: 20px;
   height: 20px;
@@ -151,7 +158,6 @@ input, select {
 .shelf-meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   font-size: 13px;
   color: var(--ink-faint);
   margin: 2px 2px 14px;
@@ -384,7 +390,6 @@ input, select {
   flex-direction: column;
   animation: confirm-pop 0.18s ease both;
 }
-.popup-menu.left { left: 20px; }
 .popup-menu.right { right: 20px; }
 .menu-item {
   display: flex;
@@ -398,8 +403,6 @@ input, select {
   text-align: left;
 }
 .menu-item:active { background: var(--accent-soft); }
-.menu-item.active { color: var(--accent); font-weight: 600; }
-.menu-item .check { font-size: 13px; }
 
 /* ---------- mine page ---------- */
 .mine-page {
