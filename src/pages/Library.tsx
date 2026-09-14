@@ -15,7 +15,7 @@ import {
 } from '../lib/librarySources'
 import { testLibraryConnection } from '../lib/libraryBrowse'
 import { WebDavError } from '../lib/webdav'
-import type { LibrarySource, LibraryWebDavConfig } from '../types'
+import type { LibraryKind, LibrarySource, LibraryWebDavConfig } from '../types'
 
 interface BookRow {
   id: number
@@ -567,6 +567,8 @@ const LibraryEditor = ({
   const [cfg, setCfg] = useState<LibraryWebDavConfig>(
     isWebDavLibrary(source) ? source.config : defaultLibraryWebDavConfig(),
   )
+  // 书库类型：目前仅支持 WebDAV（OPDS 预留，新增选项时再补对应配置表单）
+  const [kind, setKind] = useState<LibraryKind>(source.kind ?? 'webdav')
   // 名称：可手动修改；留空时保存按服务器地址自动生成
   const [name, setName] = useState<string>(source.name ?? '')
   const [busy, setBusy] = useState(false)
@@ -607,11 +609,11 @@ const LibraryEditor = ({
     }
     setBusy(true)
     try {
-      const finalName = name.trim() || deriveLibraryName('webdav', cfg)
+      const finalName = name.trim() || deriveLibraryName(kind, cfg)
       if (draft) {
-        await addLibrarySource({ kind: 'webdav', name: finalName, config: cfg, enabled: true })
+        await addLibrarySource({ kind, name: finalName, config: cfg, enabled: true })
       } else {
-        await updateLibrarySource(source.id, { config: cfg, name: finalName, enabled: true })
+        await updateLibrarySource(source.id, { kind, config: cfg, name: finalName, enabled: true })
       }
       await onSaved()
       onClose()
@@ -647,6 +649,16 @@ const LibraryEditor = ({
 
   return (
     <>
+      <div className="field">
+        <span className="field-label">书库类型</span>
+        <select
+          className="field-select"
+          value={kind}
+          onChange={e => setKind(e.target.value as LibraryKind)}
+        >
+          <option value="webdav">WebDAV</option>
+        </select>
+      </div>
       <label className="field">
         <span className="field-label">服务器地址</span>
         <input type="url" placeholder="https://dav.example.com/dav"
@@ -666,7 +678,6 @@ const LibraryEditor = ({
         <span className="field-label">名称</span>
         <div className="name-test-row">
           <input type="text"
-            placeholder={cfg.url ? `默认：${stripScheme(cfg.url)}` : '留空则按服务器地址自动生成'}
             value={name} onChange={e => setName(e.target.value)} />
           <button className="btn" disabled={busy} onClick={handleTest}>测试连接</button>
         </div>
