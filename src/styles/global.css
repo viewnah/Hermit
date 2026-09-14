@@ -405,15 +405,6 @@ input, select {
   color: var(--ink-faint);
   margin-right: 10px;
 }
-/* 页脚：关于一句话 */
-.mine-about {
-  padding-top: 18px;
-  border-top: 1px solid var(--hairline);
-  text-align: center;
-  font-size: 12px;
-  letter-spacing: 0.1em;
-  color: var(--ink-faint);
-}
 
 /* ---------- reader ---------- */
 .reader-root {

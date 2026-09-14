@@ -326,9 +326,6 @@ export const Library = ({ onOpen }: { onOpen: (bookId: number) => void }) => {
               setLibExpandedId={setLibExpandedId}
             />
             <SyncPanel />
-            <div className="mine-about">
-              Hermit · 本地优先的 EPUB 阅读器
-            </div>
           </div>
         )}
       </div>
