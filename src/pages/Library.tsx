@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { db } from '../db'
 import { pushBackHandler } from '../lib/backButton'
 import { deleteBook, importBookFile } from '../lib/bookService'
-import { toast, confirmDialog } from '../components/ui'
+import { toast, confirmDialog, SelectField } from '../components/ui'
 import { SyncPanel } from '../components/SyncPanel'
 import { SectionCard } from '../components/SectionCard'
 import { LibraryDirPicker } from '../components/LibraryDirPicker'
@@ -616,13 +616,11 @@ const LibraryEditor = ({
     <>
       <div className="field">
         <span className="field-label">书库类型</span>
-        <select
-          className="field-select"
+        <SelectField
           value={kind}
-          onChange={e => setKind(e.target.value as LibraryKind)}
-        >
-          <option value="webdav">WebDAV</option>
-        </select>
+          onChange={setKind}
+          options={[{ value: 'webdav' as LibraryKind, label: 'WebDAV' }]}
+        />
       </div>
       <label className="field">
         <span className="field-label">服务器地址</span>

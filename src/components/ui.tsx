@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { pushBackHandler } from '../lib/backButton'
 
 export const Sheet = ({
@@ -17,6 +17,93 @@ export const Sheet = ({
         {children}
       </div>
     </>
+  )
+}
+
+const IconChevronDown = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m6 9 6 6 6-6" />
+  </svg>
+)
+
+const IconCheck = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+)
+
+/**
+ * 下拉选择框：自绘弹出面板，替代原生 <select>。
+ * 原生 select 在 Android WebView 下会唤起系统模态选择器（弹窗而非下拉），
+ * 自绘后与桌面端表现一致，也便于跟随主题配色。
+ */
+export const SelectField = <T extends string>({
+  value, options, onChange, disabled,
+}: {
+  value: T
+  options: { value: T; label: string }[]
+  onChange: (v: T) => void
+  disabled?: boolean
+}) => {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  // 点击面板外部收起
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: Event) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  // Android 返回键：先收起下拉，而不是退出应用
+  useEffect(() => {
+    if (!open) return
+    return pushBackHandler(() => { setOpen(false); return true })
+  }, [open])
+
+  const current = options.find(o => o.value === value)
+
+  return (
+    <div className="field-select" ref={wrapRef}>
+      <button
+        type="button"
+        className="field-select-trigger"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen(v => !v)}
+      >
+        <span className="field-select-value">{current?.label ?? ''}</span>
+        <span className={`field-select-arrow ${open ? 'open' : ''}`}><IconChevronDown /></span>
+      </button>
+      {open && (
+        <div className="field-select-menu" role="listbox">
+          {options.map(o => (
+            <button
+              key={o.value}
+              type="button"
+              role="option"
+              aria-selected={o.value === value}
+              className={`field-select-option ${o.value === value ? 'selected' : ''}`}
+              onClick={() => { onChange(o.value); setOpen(false) }}
+            >
+              <span>{o.label}</span>
+              {o.value === value && <IconCheck />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
