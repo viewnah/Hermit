@@ -186,10 +186,33 @@ const updateReleaseSample = (state, distance, time) => {
         && state.releaseSamples[1].time < cutoff) state.releaseSamples.shift()
 }
 
-// 用松手前 90ms 窗口内的位移样本估算实时速度，停顿后视为 0
+// 用松手前 90ms 窗口内的位移样本估算实时速度，停顿后视为 0。
+// 事件频率不可控（CDP 触摸注入约 20Hz、Android WebView 低端机更低）：
+// 同样 80ms 的轻扫可能只产生 2~3 个样本，窗口插值把稀疏样本平均成
+// 整场低速（实测仅为真实瞬时速度的约 3%），短距轻扫永远不满足提交
+// 判定（projectedProgress 不过半）→ 手指按住轻扫翻页失效。
+// 样本稀疏（≤3 个，事件频率低于窗口分辨率）时改用「最后两个样本的
+// 差分速度」——它才反映松手瞬间的瞬时速度
 const getReleaseVelocity = state => {
     const latest = state.releaseSamples.at(-1)
     if (!latest || latest.time - state.lastMovementTime > RELEASE_PAUSE_THRESHOLD_MS) return 0
+
+    // 样本稀疏：事件频率低（注入设备/低端机），整场平均速度严重失真，
+    // 直接取差分作为松手瞬时速度。注意最后几个样本的 distance 可能相同
+    // （事件合并导致两帧采样到同一位置），差分须从「最后一次距离变化」
+    // 起算，否则速度被错误地判为 0（静止），轻扫被误判为慢拖回弹
+    if (state.releaseSamples.length <= 3) {
+        // 从后往前找第一个 distance 不同的样本：那是最后一次移动
+        let prev = null
+        for (let i = state.releaseSamples.length - 2; i >= 0; i--) {
+            if (state.releaseSamples[i].distance !== latest.distance) {
+                prev = state.releaseSamples[i]
+                break
+            }
+        }
+        if (!prev || latest.time <= prev.time) return 0
+        return (latest.distance - prev.distance) / (latest.time - prev.time)
+    }
 
     const cutoff = latest.time - RELEASE_VELOCITY_WINDOW_MS
     const before = state.releaseSamples[0]
@@ -660,6 +683,11 @@ export class Paginator extends HTMLElement {
     #vtFinishing = null
     #vtProgrammatic = null
     #vtNamedHost = null
+    // destroy() 已调用：跨章换章的异步回调不得再触碰视图（会复活已销毁的 view）
+    #destroyed = false
+    // 手势期间被「寄存」的旧视图元素（见 #createView）：触摸流绑定在
+    // touchstart 的目标 iframe 上，手势未结束不能把它移出文档
+    #parkedViews = []
     #styles
     #styleMap = new WeakMap()
     #mediaQuery = matchMedia('(prefers-color-scheme: dark)')
@@ -910,7 +938,23 @@ export class Paginator extends HTMLElement {
     #createView() {
         if (this.#view) {
             this.#view.destroy()
-            this.#container.removeChild(this.#view.element)
+            const el = this.#view.element
+            // 手势进行中（跨章跟手）：浏览器把整场触摸流绑定在 touchstart 的
+            // 目标 iframe 上，一旦该 iframe 被移出文档，后续 touchmove/touchend
+            // 不会再投递给任何节点——跨章拖动会当场失去跟手（实测：可信触摸
+            // 在换章后 move 事件数骤降为 0，进度冻结在 0）。
+            // 因此手势期间把旧视图「寄存」在容器里（脱离布局、不可见），
+            // 等手势结束再真正移除
+            if (this.#vtDrag) {
+                setStylesImportant(el, {
+                    position: 'absolute', top: '0', left: '0',
+                    width: '100%', height: '100%',
+                    visibility: 'hidden', 'z-index': '0',
+                })
+                this.#parkedViews.push(el)
+            } else {
+                this.#container.removeChild(el)
+            }
         }
         this.#view = new View({
             container: this,
@@ -1453,9 +1497,11 @@ export class Paginator extends HTMLElement {
         if (!edgeClaim && !earlyCenterClaim && !fallbackClaim) return
 
         // 沿前进方向的手指行程决定快照哪一页。foliate 给每章条带首尾各垫了
-        // 一个空白衬垫列（正文列是 1..pages-2）：目标列一旦落在衬垫列
-        // （跨章/书界），偏移会钳在空白页上并卡死——此时只认领不拖拽，
-        // 松手交给 snap() 走 #goTo 跨章（Readest 的 renderedPage 越界保护同款）
+        // 一个空白衬垫列（正文列是 1..pages-2）：目标列落在衬垫列时不能平移
+        // 容器（快照会被钳在空白列上，卡死在空白正文）。书界没有相邻章节可去，
+        // 只认领（松手由 #turnPage 自行 no-op）；跨章则改在快照之下的过渡
+        // 回调里换章（见 #crossSectionTurn）：旧页快照=本章末页、新页快照=
+        // 下章首页，两层照常跟手擦洗，松手取消时再换回原章
         const along = this.#rtl ? -state.dx : state.dx
         const forward = along > 0
         const step = this.#rtl ? -this.size : this.size
@@ -1463,15 +1509,36 @@ export class Paginator extends HTMLElement {
         const offset = startPosition + (forward ? step : -step)
         const targetCol = Math.round(Math.abs(offset) / this.size)
         const inText = targetCol >= 1 && targetCol <= Math.max(1, this.pages - 2)
-        if (!inText || (forward ? this.atEnd : this.atStart)) {
-            state.layeredGesture = 'claimed'
-            return
+        let adjacentIndex = null
+        if (!inText) {
+            adjacentIndex = this.#adjacentIndex(forward ? 1 : -1)
+            if (adjacentIndex == null) {
+                state.layeredGesture = 'claimed'
+                return
+            }
         }
-        let turnRoot
+        const crossing = !inText
+        const drag = {
+            transition: null, offset, startPosition, forward,
+            style, progress: 0, anims: null,
+            // 跨章会话：目标章节、原章节与还原锚点（取消时换回原页）
+            crossing, adjacentIndex,
+            startIndex: crossing ? this.#index : null,
+            startFraction: crossing ? this.#pageFraction() : null,
+            swapped: false, finalPosition: null, swapDone: null,
+            visualOriginDistance: style === 'curl'
+                ? 0 : Math.max(0, forward ? along : -along),
+            // 进度必须按快照实宽折算：正文容器可能因页边距更窄，
+            // 用它会逐渐跑赢手指
+            width: 0,
+        }
         let transition
         try {
-            turnRoot = this.#vtSetup(style, forward, true)
+            const turnRoot = this.#vtSetup(style, forward, true)
+            drag.width = turnRoot.getBoundingClientRect().width
+                || this.#container.getBoundingClientRect().width
             transition = document.startViewTransition(() => {
+                if (crossing) return this.#crossSectionTurn(drag)
                 this.containerPosition = offset
                 this.#scrollBounds = [offset, this.atStart ? 0 : this.size, this.atEnd ? 0 : this.size]
                 // 底层已就位，立即 relocate 让页眉页脚页码换到目标页
@@ -1484,38 +1551,80 @@ export class Paginator extends HTMLElement {
             this.#vtCleanup()
             return
         }
-        const drag = {
-            transition, offset, startPosition, forward,
-            style, progress: 0, anims: null,
-            visualOriginDistance: style === 'curl'
-                ? 0 : Math.max(0, forward ? along : -along),
-            // 进度必须按快照实宽折算：正文容器可能因页边距更窄，
-            // 用它会逐渐跑赢手指
-            width: turnRoot.getBoundingClientRect().width
-                || this.#container.getBoundingClientRect().width,
-        }
+        drag.transition = transition
         this.#vtDrag = drag
         // 挂起中的过渡被浏览器强制中止时（遮挡恢复等），这两条拒绝会
         // 无人接住：预先挂上空 catch 标记已处理，真正的分支在下方与 finish 里
         transition.updateCallbackDone.catch(() => {})
         transition.finished.catch(() => {})
-        vtSettled(transition.ready, 500).then(result => {
-            if (this.#vtDrag !== drag && this.#vtFinishing !== drag) return
+        // 换章要等章节加载完，new 层快照可能几百毫秒后才存在，等 ready 的
+        // 窗口相应放宽（否则会被当成快照失败，退化成无动画收尾）
+        vtSettled(transition.ready, crossing ? 4000 : 500).then(result => {
+            // 已松手（收尾接管）或已被新会话取代：不再碰动画
+            if (this.#vtDrag !== drag) return
             if (result !== 'ok') {
                 // 快照失败/被跳过/超时（遮挡）：松手走无动画收尾
                 drag.failed = true
                 return
             }
-            const anims = document.getAnimations().filter(a =>
-                a.effect?.pseudoElement?.includes('(foliate-turn)'))
-            for (const a of anims) {
-                // CSS 已声明线性擦洗；对可变的伪元素动画再兜底一次
-                try { a.effect.updateTiming({ easing: 'linear' }) } catch { /* UA animation */ }
-                a.pause()
-            }
-            drag.anims = anims
-            this.#vtDragScrub(drag)
+            this.#holdTurnAnimations(drag)
         })
+    }
+
+    // 当前页在章节内的锚点分数：跨章取消时按它换回原列。
+    // #scrollToAnchor 用 round(fraction × (正文列数-1)) 反算列号，
+    // 取 (page-1)/(正文列数-1) 可精确落回同一列（同章重排后页数不变）
+    #pageFraction() {
+        const textPages = this.pages - 2
+        return textPages > 1 ? (this.page - 1) / (textPages - 1) : 0
+    }
+
+    // 跨章跟手：在快照之下的过渡回调里换章。旧页快照已由浏览器拍好，
+    // 换章过程被盖在下面看不见。换章要等章节加载，而快照动画要等过渡回调
+    // 结束（含换章）才会创建，因此不在这里抢动画（此时还没有），
+    // 由 ready 回调统一接管并暂停。换完再等两帧确保新章节已上屏，
+    // 免得 new 层快照拍到空白 iframe。返回的 promise 即 drag.swapDone
+    #crossSectionTurn(drag) {
+        const { adjacentIndex, forward } = drag
+        drag.swapDone = (async () => {
+            try {
+                await this.#goTo({
+                    index: adjacentIndex,
+                    anchor: forward ? () => 0 : () => 1,
+                })
+            } catch { return false }
+            // 期间被销毁：调用方（finish）按未换章处理，不再改容器状态
+            if (this.#destroyed) return false
+            if (this.#index !== adjacentIndex) return false
+            drag.swapped = true
+            drag.finalPosition = this.containerPosition
+            // 等两帧确保新章节已上屏（new 层快照才不会拍到空白 iframe）。
+            // 隐藏/遮挡的页面不派发 rAF，用短定时器兜底，绝不悬挂
+            await new Promise(resolve => {
+                let done = false
+                const once = () => { if (!done) { done = true; resolve() } }
+                requestAnimationFrame(() => requestAnimationFrame(once))
+                setTimeout(once, 120)
+            })
+            return !this.#destroyed
+        })()
+        return drag.swapDone
+    }
+
+    // 收集并暂停本场翻页的快照动画，交给拖动进度擦洗。
+    // 只 pause 已经到手的那些：跨章时 new 层快照尚不存在，
+    // 等 ready 回调里再补一次，把两层都接管过来
+    #holdTurnAnimations(drag = this.#vtDrag) {
+        if (!drag) return
+        const anims = document.getAnimations().filter(a =>
+            a.effect?.pseudoElement?.includes('(foliate-turn)'))
+        if (anims.length) drag.anims = anims
+        for (const a of drag.anims ?? []) {
+            // CSS 已声明线性擦洗；对可变的伪元素动画再兜底一次
+            try { a.effect.updateTiming({ easing: 'linear' }) } catch { /* UA animation */ }
+            a.pause()
+        }
+        this.#vtDragScrub(drag)
     }
 
     #vtDragScrub(drag = this.#vtDrag) {
@@ -1537,10 +1646,23 @@ export class Paginator extends HTMLElement {
         const { size } = this
         const id = ++this.#vtToken
         try {
-            await vtSettled(transition.updateCallbackDone, 600)
-            const readyState = await vtSettled(transition.ready, 600)
+            // 换章时回调内含章节加载，updateCallbackDone / ready 都可能晚到，
+            // 等待窗口相应放宽（超时只降级为无动画收尾，不会丢结果）
+            await vtSettled(transition.updateCallbackDone, drag.crossing ? 4000 : 600)
+            const readyState = await vtSettled(transition.ready,
+                drag.crossing ? 4000 : 600)
             if (id !== this.#vtToken) return
 
+            // 跨章：等换章落地才知道新页偏移（快照之下，顺序无所谓）。
+            // 换章失败（章节加载异常）则按取消处理，绝不留在空白衬垫列
+            if (drag.crossing) {
+                await vtSettled(drag.swapDone ?? Promise.resolve(false), 4000)
+                if (id !== this.#vtToken) return
+                if (!drag.swapped) commit = false
+            }
+
+            // 早于 ready 松手时启动回调已被清空，动画只能在此重新接管
+            if (readyState === 'ok') this.#holdTurnAnimations(drag)
             const anims = readyState === 'ok' ? drag.anims : null
             if (anims) for (const a of anims) updatePlaybackRate(a, playbackRate)
             if (commit) {
@@ -1548,6 +1670,34 @@ export class Paginator extends HTMLElement {
                 await vtSettled(transition.finished, 1200)
                 if (id !== this.#vtToken) return
             } else {
+                // 跨章取消必须「先恢复章节、再倒放收尾」，顺序不能反：
+                // 倒放的快照动画一旦全部结束，浏览器会立刻自动收掉整个
+                // ::view-transition 伪元素树（不等 skipTransition），而切回
+                // 原章节要重新创建 view 并解压章节资源，这段空白就会赤裸
+                // 暴露出来——实测表现为松手后一帧白/黑闪（章内取消没有
+                // 换章动作，所以不闪）。先把原章节换回来并等它真正画上屏，
+                // 再让快照倒放回去即可无缝衔接
+                if (drag.crossing && drag.swapped) {
+                    drag.swapped = false
+                    try {
+                        await this.#goTo({
+                            index: drag.startIndex,
+                            anchor: drag.startFraction,
+                        })
+                    } catch { /* 保持当前章节，下方仍会定位到原偏移 */ }
+                    if (id !== this.#vtToken) return
+                    this.containerPosition = startPosition
+                    this.#scrollBounds = [startPosition, this.atStart ? 0 : size, this.atEnd ? 0 : size]
+                    this.#afterScroll('snap')
+                    // 等原章节真正上屏：遮挡/隐藏的页面不派发 rAF，用短定时器兜底
+                    await new Promise(resolve => {
+                        let done = false
+                        const once = () => { if (!done) { done = true; resolve() } }
+                        requestAnimationFrame(() => requestAnimationFrame(once))
+                        setTimeout(once, 120)
+                    })
+                    if (id !== this.#vtToken) return
+                }
                 if (anims) {
                     for (const a of anims) a.reverse()
                     await vtSettled(Promise.all(anims.map(a => a.finished)), 800)
@@ -1569,13 +1719,31 @@ export class Paginator extends HTMLElement {
                 try { transition.skipTransition() } catch { /* already done */ }
             }
             this.#vtCleanup()
-            const finalPosition = commit ? offset : startPosition
-            this.containerPosition = finalPosition
-            this.#scrollBounds = [finalPosition, this.atStart ? 0 : size, this.atEnd ? 0 : size]
+            // 跨章提交：章节已在目标页，容器位置即换章后的落点；
+            // 其余情况按常规把容器钉回目标/起始偏移
+            if (drag.crossing && commit) {
+                const settled = drag.finalPosition ?? this.containerPosition
+                this.containerPosition = settled
+                this.#scrollBounds = [settled, this.atStart ? 0 : size, this.atEnd ? 0 : size]
+            } else {
+                const finalPosition = commit ? offset : startPosition
+                this.containerPosition = finalPosition
+                this.#scrollBounds = [finalPosition, this.atStart ? 0 : size, this.atEnd ? 0 : size]
+            }
             this.#afterScroll('snap')
         } finally {
             if (this.#vtFinishing === drag) this.#vtFinishing = null
+            this.#releaseParkedViews()
         }
+    }
+
+    // 手势已结束：把寄存的旧视图元素真正移出文档（见 #createView）。
+    // 跨章换章时就已 destroy 过，这里只补一次 DOM 移除
+    #releaseParkedViews() {
+        if (!this.#parkedViews.length) return
+        const parked = this.#parkedViews
+        this.#parkedViews = []
+        for (const el of parked) el.remove()
     }
     // allows one to process rects as if they were LTR and horizontal
     #getRectMapper() {
@@ -1918,6 +2086,7 @@ export class Paginator extends HTMLElement {
         // 打断进行中的分层翻页：旧会话的收尾不再触碰已销毁的视图
         const transition = (this.#vtDrag ?? this.#vtFinishing)?.transition
             ?? this.#vtProgrammatic?.transition
+        this.#destroyed = true
         this.#vtDrag = null
         this.#vtFinishing = null
         this.#vtProgrammatic = null
@@ -1931,6 +2100,8 @@ export class Paginator extends HTMLElement {
         this.#observer.unobserve(this)
         this.#view.destroy()
         this.#view = null
+        // 手势期间寄存的旧视图元素一并摘掉（见 #createView）
+        this.#releaseParkedViews()
         this.sections[this.#index]?.unload?.()
         this.#mediaQuery.removeEventListener('change', this.#mediaQueryListener)
     }
